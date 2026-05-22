@@ -1,0 +1,16 @@
+{
+  "name": "primez-kodi-webhook",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@octokit/auth-app": "latest",
+    "@octokit/request": "latest"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}
