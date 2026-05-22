@@ -13,15 +13,16 @@ https://primez-x.github.io/kodi.addons/repository.primez.addons/repository.prime
 - `addons.json` lists the source add-on repositories and branches to publish.
 - `tools/build_repository.py` downloads each source repository archive, packages it as a Kodi add-on zip, and generates `addons.xml` plus `addons.xml.md5`.
 - `.github/workflows/publish.yml` deploys the generated static repository to GitHub Pages.
-- Each source add-on repo triggers this repository with `repository_dispatch` after a push.
+- Source repository webhooks call a tiny receiver, which validates the GitHub signature and triggers this repository with `repository_dispatch`.
 
 ## Required one-time GitHub setup
 
 1. In this repository, open **Settings > Pages** and set the source to **GitHub Actions**.
-2. Create a fine-grained personal access token that can access only `primez-x/kodi.addons` with **Contents: read and write**.
-3. Add that token as an Actions secret named `KODI_REPO_DISPATCH_TOKEN` in each source add-on repository.
+2. Deploy the webhook receiver in `webhook/cloudflare-worker`.
+3. Create a GitHub App installed only on `primez-x/kodi.addons` with **Contents: read and write**. The webhook receiver uses that app to mint short-lived installation tokens.
+4. Add repository webhooks to the source add-on repositories. Point them at the receiver URL, use the receiver's webhook secret, select only the **Pushes** event, and leave them active.
 
-The source add-on repositories are public, so this central publisher does not need a separate read token for them.
+No source add-on repository needs a PAT or an Actions secret.
 
 ## Tracked add-ons
 
