@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a static Kodi add-on repository."""
+"""Build a static Kodi add-on repository for GitHub Pages."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "addons.json"
-OUTPUT_DIR = ROOT / os.environ.get("KODI_OUTPUT_DIR", "repo")
+OUTPUT_DIR = ROOT / os.environ.get("KODI_OUTPUT_DIR", "public")
 
 DEFAULT_EXCLUDES = (
     ".git",
