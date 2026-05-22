@@ -6,7 +6,7 @@
     "provider_name": "primez-x",
     "summary": "Primez Kodi add-on repository",
     "description": "Personal Kodi add-on repository for Primez-maintained add-ons.",
-    "base_url": "https://primez-x.github.io/kodi.addons/"
+    "base_url": "https://raw.githubusercontent.com/primez-x/kodi.addons/main/repo/"
   },
   "addons": [
     {
