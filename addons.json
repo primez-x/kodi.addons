@@ -1,0 +1,25 @@
+{
+  "repository": {
+    "id": "repository.primez.addons",
+    "name": "Primez Kodi Add-ons",
+    "version": "1.0.0",
+    "provider_name": "primez-x",
+    "summary": "Primez Kodi add-on repository",
+    "description": "Personal Kodi add-on repository for Primez-maintained add-ons.",
+    "base_url": "https://primez-x.github.io/kodi.addons/"
+  },
+  "addons": [
+    {
+      "repository": "primez-x/plugin.video.plexkodiconnect",
+      "ref": "python3-beta"
+    },
+    {
+      "repository": "primez-x/plugin.audio.spotifykodiconnect",
+      "ref": "master"
+    },
+    {
+      "repository": "primez-x/skin.arctic.fuse.3",
+      "ref": "omega"
+    }
+  ]
+}
