@@ -1,0 +1,19 @@
+name = "primez-kodi-webhook"
+main = "src/index.js"
+compatibility_date = "2026-05-22"
+
+[vars]
+TARGET_OWNER = "primez-x"
+TARGET_REPO = "kodi.addons"
+EVENT_TYPE = "addon_updated"
+ALLOWED_REPOS_JSON = '''{
+  "primez-x/plugin.video.plexkodiconnect": "python3-beta",
+  "primez-x/plugin.audio.spotifykodiconnect": "master",
+  "primez-x/skin.arctic.fuse.3": "omega"
+}'''
+
+# Set these as Worker secrets, not checked-in vars:
+# wrangler secret put WEBHOOK_SECRET
+# wrangler secret put GITHUB_APP_ID
+# wrangler secret put GITHUB_APP_PRIVATE_KEY
+# wrangler secret put GITHUB_APP_INSTALLATION_ID
