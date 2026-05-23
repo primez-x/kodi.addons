@@ -2,7 +2,7 @@
   "repository": {
     "id": "repository.primez.addons",
     "name": "Primez Kodi Add-ons",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "provider_name": "primez-x",
     "summary": "Primez Kodi add-on repository",
     "description": "Personal Kodi add-on repository for Primez-maintained add-ons.",
