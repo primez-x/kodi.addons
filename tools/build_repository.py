@@ -148,6 +148,48 @@ def zip_addon(source_root: Path, addon_id: str, version: str, output_dir: Path, 
     return zip_path
 
 
+def copy_repository_asset(source_root: Path, addon_id: str, output_dir: Path, relative_path: str) -> bool:
+    normalized = PurePosixPath(relative_path)
+    if normalized.is_absolute() or ".." in normalized.parts:
+        return False
+
+    source = source_root / Path(*normalized.parts)
+    if not source.is_file():
+        return False
+
+    target = output_dir / addon_id / Path(*normalized.parts)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    return True
+
+
+def copy_repository_assets(source_root: Path, addon_id: str, version: str, addon_xml_root: ET.Element, output_dir: Path) -> None:
+    paths: set[str] = set()
+
+    for candidate in ("icon.png", "fanart.jpg", "fanart.png", "changelog.txt"):
+        if (source_root / candidate).is_file():
+            paths.add(candidate)
+
+    assets = addon_xml_root.find("extension[@point='xbmc.addon.metadata']/assets")
+    if assets is not None:
+        for asset in assets:
+            if asset.text and asset.text.strip():
+                paths.add(asset.text.strip())
+
+    for changelog in source_root.glob("changelog*.txt"):
+        if changelog.is_file():
+            paths.add(changelog.name)
+
+    for path in sorted(paths):
+        copy_repository_asset(source_root, addon_id, output_dir, path)
+
+    changelog = source_root / "changelog.txt"
+    if changelog.is_file():
+        versioned = output_dir / addon_id / f"changelog-{version}.txt"
+        versioned.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(changelog, versioned)
+
+
 def serialize_addon(root: ET.Element) -> str:
     ET.indent(root, space="  ")
     return ET.tostring(root, encoding="unicode", short_empty_elements=True)
@@ -269,6 +311,7 @@ def build() -> None:
             exclude_patterns = list(DEFAULT_EXCLUDES)
             exclude_patterns.extend(addon_config.get("exclude", []))
             package_path = zip_addon(addon_root, addon_id, version, OUTPUT_DIR, exclude_patterns)
+            copy_repository_assets(addon_root, addon_id, version, addon_xml_root, OUTPUT_DIR)
             packages.append(
                 {
                     "id": addon_id,
