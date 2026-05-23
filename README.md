@@ -6,7 +6,7 @@ https://primez-x.github.io/kodi.addons/
 
 Install the repository add-on in Kodi from:
 
-https://primez-x.github.io/kodi.addons/repository.primez.addons/repository.primez.addons-1.0.1.zip
+https://primez-x.github.io/kodi.addons/repository.primez.addons/repository.primez.addons-1.0.0.zip
 
 ## How it works
 
