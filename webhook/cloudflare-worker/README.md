@@ -41,6 +41,13 @@ wrangler secret put GITHUB_APP_PRIVATE_KEY
 wrangler secret put GITHUB_APP_INSTALLATION_ID
 ```
 
+GitHub downloads app private keys as PKCS#1 (`BEGIN RSA PRIVATE KEY`), but the Worker auth library needs PKCS#8 (`BEGIN PRIVATE KEY`) in the Cloudflare runtime. Convert the downloaded key before setting `GITHUB_APP_PRIVATE_KEY`:
+
+```bash
+node -e "const fs=require('fs');const crypto=require('crypto');const key=crypto.createPrivateKey(fs.readFileSync(process.argv[1],'utf8'));fs.writeFileSync(process.argv[2],key.export({format:'pem',type:'pkcs8'}));" github-app.private-key.pem github-app.private-key.pkcs8.pem
+wrangler secret put GITHUB_APP_PRIVATE_KEY < github-app.private-key.pkcs8.pem
+```
+
 Deploy:
 
 ```bash
