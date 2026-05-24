@@ -30,6 +30,30 @@
       "ref": "omega"
     },
     {
+      "repository": "jurialmunkey/resource.font.robotocjksc",
+      "ref": "v0.0.3"
+    },
+    {
+      "repository": "jurialmunkey/script.module.infotagger",
+      "ref": "v0.0.8"
+    },
+    {
+      "repository": "jurialmunkey/script.module.jurialmunkey",
+      "ref": "v0.2.35"
+    },
+    {
+      "repository": "jurialmunkey/script.skinvariables",
+      "ref": "v2.2.1"
+    },
+    {
+      "repository": "jurialmunkey/script.texturemaker",
+      "ref": "a535b1c2924c121c0b1e1a3ea88685f027ec17fe"
+    },
+    {
+      "repository": "jurialmunkey/plugin.video.themoviedb.helper",
+      "ref": "v6.15.6"
+    },
+    {
       "repository": "primez-x/service.nexttrack",
       "ref": "main"
     }
