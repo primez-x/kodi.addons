@@ -14,6 +14,14 @@
       "ref": "python3-beta"
     },
     {
+      "repository": "croneter/plugin.video.plexkodiconnect.movies",
+      "ref": "3.0.2"
+    },
+    {
+      "repository": "croneter/plugin.video.plexkodiconnect.tvshows",
+      "ref": "3.0.2"
+    },
+    {
       "repository": "primez-x/plugin.audio.spotifykodiconnect",
       "ref": "master"
     },
