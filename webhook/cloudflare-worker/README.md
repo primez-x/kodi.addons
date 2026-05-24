@@ -62,5 +62,6 @@ Add the webhook to:
 - `primez-x/plugin.video.plexkodiconnect`
 - `primez-x/plugin.audio.spotifykodiconnect`
 - `primez-x/skin.arctic.fuse.3`
+- `primez-x/service.nexttrack`
 
 The Worker ignores pushes to any branch other than the branch configured in `ALLOWED_REPOS_JSON`.

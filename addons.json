@@ -28,6 +28,10 @@
     {
       "repository": "primez-x/skin.arctic.fuse.3",
       "ref": "omega"
+    },
+    {
+      "repository": "primez-x/service.nexttrack",
+      "ref": "main"
     }
   ]
 }

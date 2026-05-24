@@ -5,6 +5,7 @@ const DEFAULT_ALLOWED_REPOS = {
   "primez-x/plugin.video.plexkodiconnect": "python3-beta",
   "primez-x/plugin.audio.spotifykodiconnect": "master",
   "primez-x/skin.arctic.fuse.3": "omega",
+  "primez-x/service.nexttrack": "main",
 };
 
 export default {

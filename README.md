@@ -29,5 +29,6 @@ No source add-on repository needs a PAT or an Actions secret.
 - `primez-x/plugin.video.plexkodiconnect` from `python3-beta`
 - `primez-x/plugin.audio.spotifykodiconnect` from `master`
 - `primez-x/skin.arctic.fuse.3` from `omega`
+- `primez-x/service.nexttrack` from `main`
 
 Run the **Publish Kodi repository** workflow manually any time you want to rebuild the repository without waiting for a source add-on push.
