@@ -89,6 +89,87 @@ def download_archive(repository: str, ref: str, target: Path) -> None:
         raise RuntimeError(f"Failed to download {repository}@{ref}: HTTP {exc.code}: {body}") from exc
 
 
+def fetch_published_addon_versions(config: dict) -> dict[str, str]:
+    url = with_trailing_slash(config["base_url"]) + "addons.xml"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "primez-kodi-repository-builder",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {}
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Failed to fetch published add-on versions: HTTP {exc.code}: {details}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Failed to fetch published add-on versions: {exc.reason}") from exc
+
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError as exc:
+        raise RuntimeError(f"Published addons.xml at {url} is not valid XML: {exc}") from exc
+
+    versions: dict[str, str] = {}
+    for addon in root.findall("addon"):
+        addon_id = addon.attrib.get("id")
+        version = addon.attrib.get("version")
+        if addon_id and version:
+            versions[addon_id] = version
+    return versions
+
+
+def is_source_publish(addon_config: dict) -> bool:
+    return (
+        os.environ.get("KODI_SOURCE_REPOSITORY") == addon_config["repository"]
+        and bool(os.environ.get("KODI_SOURCE_SHA"))
+    )
+
+
+def parse_numeric_version(value: str) -> tuple[int, ...]:
+    parts = value.strip().split(".")
+    if not parts or any(not part.isdecimal() for part in parts):
+        raise RuntimeError(
+            f"Unsupported add-on version {value!r}: publish guard expects dot-separated numeric versions"
+        )
+    return tuple(int(part) for part in parts)
+
+
+def compare_addon_versions(left: str, right: str) -> int:
+    left_parts = parse_numeric_version(left)
+    right_parts = parse_numeric_version(right)
+    width = max(len(left_parts), len(right_parts))
+    padded_left = left_parts + (0,) * (width - len(left_parts))
+    padded_right = right_parts + (0,) * (width - len(right_parts))
+    return (padded_left > padded_right) - (padded_left < padded_right)
+
+
+def enforce_source_version_bump(
+    addon_id: str,
+    incoming_version: str,
+    addon_config: dict,
+    published_versions: dict[str, str],
+) -> None:
+    published_version = published_versions.get(addon_id)
+    if not published_version:
+        print(f"Version guard: {addon_id} is not currently published; allowing initial publish")
+        return
+
+    if compare_addon_versions(incoming_version, published_version) <= 0:
+        repository = addon_config["repository"]
+        sha = os.environ.get("KODI_SOURCE_SHA", "")
+        raise RuntimeError(
+            f"{addon_id} version must increase for webhook publish from {repository}@{sha}. "
+            f"Published version is {published_version}; incoming addon.xml version is "
+            f"{incoming_version}. Bump addon.xml before publishing to this branch."
+        )
+
+    print(f"Version guard: {addon_id} {incoming_version} > published {published_version}")
+
+
 def safe_extract(zip_path: Path, destination: Path) -> None:
     with zipfile.ZipFile(zip_path) as archive:
         for member in archive.infolist():
@@ -280,6 +361,7 @@ def build() -> None:
 
     packages: list[dict] = []
     addon_xml_entries: list[str] = []
+    published_versions: dict[str, str] | None = None
 
     repo_addon_root = build_repository_addon_xml(manifest["repository"])
     repo_addon_xml = serialize_addon(repo_addon_root)
@@ -307,6 +389,10 @@ def build() -> None:
             safe_extract(archive_path, extract_dir)
             addon_root = find_addon_root(extract_dir)
             addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
+            if is_source_publish(addon_config):
+                if published_versions is None:
+                    published_versions = fetch_published_addon_versions(manifest["repository"])
+                enforce_source_version_bump(addon_id, version, addon_config, published_versions)
 
             exclude_patterns = list(DEFAULT_EXCLUDES)
             exclude_patterns.extend(addon_config.get("exclude", []))
