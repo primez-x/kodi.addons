@@ -68,9 +68,7 @@ def with_trailing_slash(value: str) -> str:
     return value if value.endswith("/") else value + "/"
 
 
-def download_archive(repository: str, ref: str, target: Path) -> None:
-    quoted_ref = urllib.parse.quote(ref, safe="")
-    url = f"https://api.github.com/repos/{repository}/zipball/{quoted_ref}"
+def github_request(url: str) -> bytes:
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "primez-kodi-repository-builder",
@@ -83,10 +81,26 @@ def download_archive(repository: str, ref: str, target: Path) -> None:
     request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
-            target.write_bytes(response.read())
+            return response.read()
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Failed to download {repository}@{ref}: HTTP {exc.code}: {body}") from exc
+        raise RuntimeError(f"GitHub request failed for {url}: HTTP {exc.code}: {body}") from exc
+
+
+def resolve_source_sha(repository: str, ref: str) -> str:
+    quoted_ref = urllib.parse.quote(ref, safe="")
+    url = f"https://api.github.com/repos/{repository}/commits/{quoted_ref}"
+    data = json.loads(github_request(url).decode("utf-8"))
+    sha = data.get("sha")
+    if not sha:
+        raise RuntimeError(f"Failed to resolve {repository}@{ref} to a commit SHA")
+    return sha
+
+
+def download_archive(repository: str, ref: str, target: Path) -> None:
+    quoted_ref = urllib.parse.quote(ref, safe="")
+    url = f"https://api.github.com/repos/{repository}/zipball/{quoted_ref}"
+    target.write_bytes(github_request(url))
 
 
 def fetch_published_addon_versions(config: dict) -> dict[str, str]:
@@ -122,6 +136,38 @@ def fetch_published_addon_versions(config: dict) -> dict[str, str]:
     return versions
 
 
+def fetch_published_source_manifest(config: dict) -> dict[str, dict]:
+    url = with_trailing_slash(config["base_url"]) + "source-manifest.json"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "primez-kodi-repository-builder",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {}
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Failed to fetch published source manifest: HTTP {exc.code}: {details}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Failed to fetch published source manifest: {exc.reason}") from exc
+
+    try:
+        manifest = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Published source-manifest.json at {url} is not valid JSON: {exc}") from exc
+
+    sources: dict[str, dict] = {}
+    for entry in manifest.get("addons", []):
+        addon_id = entry.get("id")
+        if addon_id:
+            sources[addon_id] = entry
+    return sources
+
+
 def is_source_publish(addon_config: dict) -> bool:
     return (
         os.environ.get("KODI_SOURCE_REPOSITORY") == addon_config["repository"]
@@ -152,22 +198,39 @@ def enforce_source_version_bump(
     incoming_version: str,
     addon_config: dict,
     published_versions: dict[str, str],
+    published_sources: dict[str, dict],
+    incoming_sha: str,
 ) -> None:
     published_version = published_versions.get(addon_id)
     if not published_version:
         print(f"Version guard: {addon_id} is not currently published; allowing initial publish")
         return
 
-    if compare_addon_versions(incoming_version, published_version) <= 0:
-        repository = addon_config["repository"]
-        sha = os.environ.get("KODI_SOURCE_SHA", "")
+    comparison = compare_addon_versions(incoming_version, published_version)
+    repository = addon_config["repository"]
+    if comparison > 0:
+        print(f"Version guard: {addon_id} {incoming_version} > published {published_version}")
+        return
+
+    if comparison == 0:
+        published_source = published_sources.get(addon_id, {})
+        if published_source.get("repository") == repository and published_source.get("sha") == incoming_sha:
+            print(
+                f"Version guard: {addon_id} {incoming_version} is already published "
+                f"from {repository}@{incoming_sha}; allowing idempotent rebuild"
+            )
+            return
+
         raise RuntimeError(
-            f"{addon_id} version must increase for webhook publish from {repository}@{sha}. "
+            f"{addon_id} version must increase for webhook publish from {repository}@{incoming_sha}. "
             f"Published version is {published_version}; incoming addon.xml version is "
             f"{incoming_version}. Bump addon.xml before publishing to this branch."
         )
 
-    print(f"Version guard: {addon_id} {incoming_version} > published {published_version}")
+    raise RuntimeError(
+        f"{addon_id} version went backwards for webhook publish from {repository}@{incoming_sha}. "
+        f"Published version is {published_version}; incoming addon.xml version is {incoming_version}."
+    )
 
 
 def safe_extract(zip_path: Path, destination: Path) -> None:
@@ -345,6 +408,14 @@ def write_index(packages: list[dict], output_dir: Path) -> None:
     (output_dir / ".nojekyll").write_text("", encoding="utf-8")
 
 
+def write_source_manifest(sources: list[dict], output_dir: Path) -> None:
+    manifest = {
+        "addons": sources,
+    }
+    content = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    (output_dir / "source-manifest.json").write_text(content, encoding="utf-8", newline="\n")
+
+
 def source_ref_for(addon_config: dict) -> str:
     event_repository = os.environ.get("KODI_SOURCE_REPOSITORY", "")
     event_sha = os.environ.get("KODI_SOURCE_SHA", "")
@@ -361,7 +432,9 @@ def build() -> None:
 
     packages: list[dict] = []
     addon_xml_entries: list[str] = []
+    source_entries: list[dict] = []
     published_versions: dict[str, str] | None = None
+    published_sources: dict[str, dict] | None = None
 
     repo_addon_root = build_repository_addon_xml(manifest["repository"])
     repo_addon_xml = serialize_addon(repo_addon_root)
@@ -380,24 +453,44 @@ def build() -> None:
         for addon_config in manifest["addons"]:
             repository = addon_config["repository"]
             ref = source_ref_for(addon_config)
+            source_sha = resolve_source_sha(repository, ref)
             archive_path = temp_dir / f"{repository.replace('/', '__')}.zip"
             extract_dir = temp_dir / repository.replace("/", "__")
             extract_dir.mkdir()
 
-            print(f"Packaging {repository}@{ref}")
-            download_archive(repository, ref, archive_path)
+            print(f"Packaging {repository}@{ref} ({source_sha})")
+            download_archive(repository, source_sha, archive_path)
             safe_extract(archive_path, extract_dir)
             addon_root = find_addon_root(extract_dir)
             addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
             if is_source_publish(addon_config):
                 if published_versions is None:
                     published_versions = fetch_published_addon_versions(manifest["repository"])
-                enforce_source_version_bump(addon_id, version, addon_config, published_versions)
+                if published_sources is None:
+                    published_sources = fetch_published_source_manifest(manifest["repository"])
+                enforce_source_version_bump(
+                    addon_id,
+                    version,
+                    addon_config,
+                    published_versions,
+                    published_sources,
+                    source_sha,
+                )
 
             exclude_patterns = list(DEFAULT_EXCLUDES)
             exclude_patterns.extend(addon_config.get("exclude", []))
             package_path = zip_addon(addon_root, addon_id, version, OUTPUT_DIR, exclude_patterns)
             copy_repository_assets(addon_root, addon_id, version, addon_xml_root, OUTPUT_DIR)
+            source_entries.append(
+                {
+                    "id": addon_id,
+                    "ref": addon_config["ref"],
+                    "repository": repository,
+                    "resolved_ref": ref,
+                    "sha": source_sha,
+                    "version": version,
+                }
+            )
             packages.append(
                 {
                     "id": addon_id,
@@ -408,6 +501,7 @@ def build() -> None:
             addon_xml_entries.append(serialize_addon(addon_xml_root))
 
     write_addons_xml(addon_xml_entries, OUTPUT_DIR)
+    write_source_manifest(source_entries, OUTPUT_DIR)
     write_index(packages, OUTPUT_DIR)
 
     print("Built Kodi repository:")
