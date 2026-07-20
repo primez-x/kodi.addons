@@ -56,6 +56,10 @@
     {
       "repository": "primez-x/service.nexttrack",
       "ref": "main"
+    },
+    {
+      "repository": "primez-x/service.smartsubtitles",
+      "ref": "main"
     }
   ]
 }
