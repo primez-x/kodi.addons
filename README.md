@@ -29,6 +29,7 @@ No source add-on repository needs a PAT or an Actions secret.
 - `primez-x/plugin.video.plexkodiconnect` from `python3-beta`
 - `primez-x/plugin.audio.spotifykodiconnect` from `master`
 - `primez-x/skin.arctic.fuse.3` from `primez`
+- `primez-x/service.upnext` from `master`
 - `primez-x/service.nexttrack` from `main`
 
 ## Published support packages

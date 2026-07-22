@@ -54,6 +54,10 @@
       "ref": "v6.15.6"
     },
     {
+      "repository": "primez-x/service.upnext",
+      "ref": "master"
+    },
+    {
       "repository": "primez-x/service.nexttrack",
       "ref": "main"
     },
