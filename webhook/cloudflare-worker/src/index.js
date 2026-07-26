@@ -6,6 +6,7 @@ const DEFAULT_ALLOWED_REPOS = {
   "primez-x/plugin.audio.spotifykodiconnect": "master",
   "primez-x/skin.arctic.fuse.3": "primez",
   "primez-x/service.nexttrack": "main",
+  "primez-x/service.smartsubtitles": "main",
 };
 
 export default {
