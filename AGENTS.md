@@ -30,6 +30,8 @@ Recent commits use short, imperative subject lines such as `Add Cloudflare Worke
 
 Do not merge or dispatch a child add-on branch update unless that child repo commit includes the required `addon.xml` version bump. Kodi auto-update tracks generated add-on versions, not Git branch heads, and `tools/build_repository.py` intentionally fails webhook publishes when the source version does not increase.
 
+When a `kodi.addons` publish is intended to include a new commit from a mutable child branch configured in `addons.json`, push the child commit first and verify that the remote branch resolves to the intended SHA before pushing `kodi.addons` `main` or manually dispatching the publish workflow. `push` and `workflow_dispatch` runs have no `KODI_SOURCE_REPOSITORY`/`KODI_SOURCE_SHA` payload, so `tools/build_repository.py` resolves the configured branch at runtime; verify the resulting workflow log or `source-manifest.json` records the intended SHA.
+
 PRs should include a brief summary, any changed add-on repositories or refs, verification commands run, and notes about required secret/configuration changes. Include generated output only when it is intentionally tracked; `public/` is deployment output from the workflow.
 
 ## Security & Configuration Tips
