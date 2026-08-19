@@ -50,8 +50,8 @@
       "ref": "a535b1c2924c121c0b1e1a3ea88685f027ec17fe"
     },
     {
-      "repository": "jurialmunkey/plugin.video.themoviedb.helper",
-      "ref": "v6.15.6"
+      "repository": "primez-x/plugin.video.themoviedb.helper",
+      "ref": "nexus"
     },
     {
       "repository": "primez-x/service.upnext",
