@@ -1,0 +1,39 @@
+{
+  "schema": "plan-review-packet/v1",
+  "plan": {
+    "path": "docs/superpowers/plans/2026-08-19-addon-workspace-reconciliation.md",
+    "sha256": "51732230fef4e1ac07b9daaea8377c75fccf26886403a73e5171f3becfb69d9c"
+  },
+  "request": "Ensure all branches and forks across all Kodi add-ons are clean, squashed, merged, committed, and current without losing user work.",
+  "constraints": [
+    "No force pushes, history rewrites of published branches, garbage collection, or deletion of unpreserved work.",
+    "Restore and retain skin branch codex/recover-arctic-fuse-3-discarded-17 at 61d8edce47f866bacbc7a58bf86e94cbc45a9b65.",
+    "Preserve TMDb nexus source-only and nexus-tests source-plus-tests separation.",
+    "Child source pushes on PKC python3-beta, Spotify master, skin primez, NextTrack main, and SmartSubtitles main immediately trigger Pages publication.",
+    "TMDb nexus and UpNext master are mutable refs in addons.json and therefore affect the next Pages build even without a direct webhook.",
+    "Do not cross publication or live-install boundaries without explicit release authority."
+  ],
+  "verified_evidence": {
+    "owned_repositories": 9,
+    "open_pull_requests": 0,
+    "legacy_dirty_clones": 3,
+    "legacy_device_correlation": {
+      "spotify": "21 of 28 paths match active, 0 match legacy, 2 are expected composite device files, 5 absent",
+      "arctic_fuse": "24 of 28 paths match active, 0 match legacy, 1 generated difference, 3 absent",
+      "nexttrack": "115 of 117 paths match active, 0 match legacy, 2 absent"
+    },
+    "pkc": "origin contains upstream by 56 commits; local is one origin commit behind; Discover stash is older than current Discover implementation",
+    "spotify": "origin contains upstream by 64 commits; local paging change must be rebased onto origin auth recovery v1.0.38 and remain v1.0.39",
+    "tmdb": "origin nexus has 7 unique and upstream has 23 unique commits; preflight conflicts only in addon.xml",
+    "arctic_fuse": "origin omega has 3 unique and upstream has 11 unique commits; primez and upstream omega have 55 and 48 unique commits respectively; only addon.xml conflicts in a preflight merge but visual compatibility remains high risk",
+    "upnext": "fork master contains upstream by 4 commits; addon-nl is one 2020 metadata translation commit and 84 commits behind master",
+    "dependencies": "all configured tags or SHAs are current except script.skinvariables v2.2.1, whose current released tag is v2.2.2"
+  },
+  "review_questions": [
+    "Does the plan preserve every unique work item before cleanup?",
+    "Does it distinguish branch hygiene from release and deployment authority correctly?",
+    "Are the proposed squash, merge, deletion, and archive decisions safe and complete per repository?",
+    "Are verification gates proportionate, especially for Arctic Fuse and source-device Spotify divergence?",
+    "Which plan statements are wrong, underspecified, or operationally unsafe?"
+  ]
+}
