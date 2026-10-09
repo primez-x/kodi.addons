@@ -27,6 +27,8 @@ DEFAULT_EXCLUDES = (
     ".git/*",
     ".github",
     ".github/*",
+    ".claude",
+    ".claude/*",
     ".DS_Store",
     ".codacy.yaml",
     ".gitattributes",
