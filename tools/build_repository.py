@@ -9,6 +9,7 @@ import html
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -21,6 +22,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "addons.json"
 OUTPUT_DIR = ROOT / os.environ.get("KODI_OUTPUT_DIR", "public")
+TEST_TIMEOUT_SECONDS = int(os.environ.get("KODI_TEST_TIMEOUT", "900"))
 
 DEFAULT_EXCLUDES = (
     ".git",
@@ -168,6 +170,48 @@ def fetch_published_source_manifest(config: dict) -> dict[str, dict]:
         if addon_id:
             sources[addon_id] = entry
     return sources
+
+
+def run_addon_tests(addon_root: Path, addon_config: dict, label: str) -> None:
+    """Run the add-on's configured test commands; raise RuntimeError on failure.
+
+    ``tests`` in addons.json is a list of argv lists run from the add-on root.
+    A leading "python3" runs with this interpreter. ``test_env`` adds
+    environment variables (e.g. PYTHONPATH) for every command.
+    """
+    commands = addon_config.get("tests") or []
+    if not commands:
+        return
+    env = dict(os.environ)
+    env.update({key: str(value) for key, value in addon_config.get("test_env", {}).items()})
+    # Tests must never see publish credentials
+    env.pop("GITHUB_TOKEN", None)
+    for command in commands:
+        argv = [sys.executable if index == 0 and part == "python3" else part
+                for index, part in enumerate(command)]
+        print(f"Testing {label}: {' '.join(command)}")
+        try:
+            result = subprocess.run(
+                argv,
+                cwd=addon_root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=TEST_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Tests for {label} timed out after {TEST_TIMEOUT_SECONDS}s: {' '.join(command)}"
+            ) from exc
+        except OSError as exc:
+            raise RuntimeError(f"Could not run tests for {label}: {exc}") from exc
+        if result.returncode != 0:
+            tail = "\n".join(result.stdout.splitlines()[-60:])
+            raise RuntimeError(
+                f"Tests failed for {label} (exit {result.returncode}): {' '.join(command)}\n{tail}"
+            )
 
 
 def is_source_publish(addon_config: dict) -> bool:
@@ -418,6 +462,35 @@ def write_source_manifest(sources: list[dict], output_dir: Path) -> None:
     (output_dir / "source-manifest.json").write_text(content, encoding="utf-8", newline="\n")
 
 
+def check_candidate(
+    addon_id: str,
+    version: str,
+    addon_root: Path,
+    addon_config: dict,
+    published_versions: dict[str, str],
+    published_sources: dict[str, dict],
+    source_sha: str,
+    label: str,
+) -> None:
+    """Raise RuntimeError unless this not-yet-published commit may be published."""
+    enforce_source_version_bump(
+        addon_id,
+        version,
+        addon_config,
+        published_versions,
+        published_sources,
+        source_sha,
+    )
+    run_addon_tests(addon_root, addon_config, label)
+
+
+def published_source_for(repository: str, published_sources: dict[str, dict]) -> dict | None:
+    for entry in published_sources.values():
+        if entry.get("repository") == repository and entry.get("sha"):
+            return entry
+    return None
+
+
 def source_ref_for(addon_config: dict) -> str:
     event_repository = os.environ.get("KODI_SOURCE_REPOSITORY", "")
     event_sha = os.environ.get("KODI_SOURCE_SHA", "")
@@ -435,8 +508,6 @@ def build() -> None:
     packages: list[dict] = []
     addon_xml_entries: list[str] = []
     source_entries: list[dict] = []
-    published_versions: dict[str, str] | None = None
-    published_sources: dict[str, dict] | None = None
 
     repo_addon_root = build_repository_addon_xml(manifest["repository"])
     repo_addon_xml = serialize_addon(repo_addon_root)
@@ -450,34 +521,69 @@ def build() -> None:
     )
     addon_xml_entries.append(repo_addon_xml)
 
+    # The add-on that triggered a webhook publish must pass its version guard
+    # and tests, or the run fails. Every other add-on is rebuilt from its
+    # branch head only if that head passes the same checks; otherwise the
+    # commit that is already published is kept. That way a commit without a
+    # version bump (or with failing tests) never leaks out with another
+    # add-on's publish, and a publish whose run GitHub dropped from the queue
+    # is still picked up by the next one.
+    try:
+        published_versions = fetch_published_addon_versions(manifest["repository"])
+        published_sources = fetch_published_source_manifest(manifest["repository"])
+    except RuntimeError as exc:
+        if os.environ.get("KODI_SOURCE_REPOSITORY"):
+            raise
+        print(f"WARNING: {exc}; building every add-on from its configured ref")
+        published_versions, published_sources = {}, {}
+
     with tempfile.TemporaryDirectory(prefix="kodi-addons-") as temp_name:
         temp_dir = Path(temp_name)
         for addon_config in manifest["addons"]:
             repository = addon_config["repository"]
             ref = source_ref_for(addon_config)
             source_sha = resolve_source_sha(repository, ref)
-            archive_path = temp_dir / f"{repository.replace('/', '__')}.zip"
-            extract_dir = temp_dir / repository.replace("/", "__")
-            extract_dir.mkdir()
+            strict = is_source_publish(addon_config)
+            published = published_source_for(repository, published_sources)
+
+            def fetch(sha: str, suffix: str) -> Path:
+                archive_path = temp_dir / f"{repository.replace('/', '__')}{suffix}.zip"
+                extract_dir = temp_dir / f"{repository.replace('/', '__')}{suffix}"
+                extract_dir.mkdir()
+                download_archive(repository, sha, archive_path)
+                safe_extract(archive_path, extract_dir)
+                return find_addon_root(extract_dir)
 
             print(f"Packaging {repository}@{ref} ({source_sha})")
-            download_archive(repository, source_sha, archive_path)
-            safe_extract(archive_path, extract_dir)
-            addon_root = find_addon_root(extract_dir)
+            addon_root = fetch(source_sha, "")
             addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
-            if is_source_publish(addon_config):
-                if published_versions is None:
-                    published_versions = fetch_published_addon_versions(manifest["repository"])
-                if published_sources is None:
-                    published_sources = fetch_published_source_manifest(manifest["repository"])
-                enforce_source_version_bump(
-                    addon_id,
-                    version,
-                    addon_config,
-                    published_versions,
-                    published_sources,
-                    source_sha,
-                )
+            label = f"{repository}@{source_sha[:12]}"
+            already_published = published is not None and published.get("sha") == source_sha
+            if not already_published and (strict or published is not None):
+                try:
+                    check_candidate(
+                        addon_id,
+                        version,
+                        addon_root,
+                        addon_config,
+                        published_versions,
+                        published_sources,
+                        source_sha,
+                        label,
+                    )
+                except RuntimeError as exc:
+                    if strict or published is None:
+                        raise
+                    kept_sha = published["sha"]
+                    print(
+                        f"WARNING: not publishing {label}: {exc}\n"
+                        f"Keeping the published {repository}@{kept_sha[:12]} "
+                        f"({published.get('version')})"
+                    )
+                    source_sha = kept_sha
+                    ref = kept_sha
+                    addon_root = fetch(source_sha, "__published")
+                    addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
 
             exclude_patterns = list(DEFAULT_EXCLUDES)
             exclude_patterns.extend(addon_config.get("exclude", []))
