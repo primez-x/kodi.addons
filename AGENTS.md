@@ -20,9 +20,9 @@ Python code uses 4-space indentation, standard-library APIs, `pathlib.Path`, and
 
 ## Testing Guidelines
 
-There is no formal test suite yet. Before opening a PR, run `python tools/build_repository.py` and inspect the generated `public/addons.xml`, `public/addons.xml.md5`, `public/index.html`, and add-on ZIP paths. For Worker changes, run `npm run dev` from `webhook/cloudflare-worker/` and exercise ping, rejected signature, ignored branch, and allowed push paths where possible.
+Run `python3 -m unittest discover -s tests` for the builder's publish-selection tests. Before opening a PR, also run `python tools/build_repository.py` and inspect the generated `public/addons.xml`, `public/addons.xml.md5`, `public/index.html`, and add-on ZIP paths. For Worker changes, run `npm run dev` from `webhook/cloudflare-worker/` and exercise ping, rejected signature, ignored branch, and allowed push paths where possible.
 
-Webhook-triggered source publishes must pass the builder's version guard: the incoming source add-on's root `addon.xml` version must be greater than the currently published version in Pages `addons.xml`. Manual/local repository builds without `KODI_SOURCE_REPOSITORY` and `KODI_SOURCE_SHA` should continue to work without this guard.
+Webhook-triggered source publishes must pass the builder's version guard and the add-on's tests: the incoming source add-on's root `addon.xml` version must be greater than the currently published version in Pages `addons.xml`, and every command in its `tests` list in `addons.json` (argv lists run from the add-on root, optional `test_env`) must exit 0, or the run fails. Every other add-on is rebuilt from its configured ref only if that commit passes the same checks; otherwise the builder keeps the commit recorded in the published `source-manifest.json` and logs a warning. Commits that are already published are not re-tested. Manual/local repository builds without `KODI_SOURCE_REPOSITORY` and `KODI_SOURCE_SHA` apply the same keep-published fallback, and build every add-on from its configured ref when the published state cannot be fetched. The workflow installs `pytest`, `polib` and `requests` for the add-on tests.
 
 ## Commit & Pull Request Guidelines
 

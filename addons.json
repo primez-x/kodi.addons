@@ -11,7 +11,10 @@
   "addons": [
     {
       "repository": "primez-x/plugin.video.plexkodiconnect",
-      "ref": "python3-beta"
+      "ref": "python3-beta",
+      "tests": [
+        ["python3", "-m", "unittest", "discover", "-s", "tests"]
+      ]
     },
     {
       "repository": "croneter/plugin.video.plexkodiconnect.movies",
@@ -23,11 +26,26 @@
     },
     {
       "repository": "primez-x/plugin.audio.spotifykodiconnect",
-      "ref": "master"
+      "ref": "master",
+      "tests": [
+        ["python3", "-m", "unittest", "test_cache_checksums"],
+        ["python3", "-m", "unittest", "test_http_spotty_audio_streamer"],
+        ["python3", "-m", "unittest", "test_main_service_osd"],
+        ["python3", "-m", "unittest", "test_play_queue"],
+        ["python3", "-m", "unittest", "test_playlist_fastpath"],
+        ["python3", "-m", "unittest", "test_plugin_auth"],
+        ["python3", "-m", "unittest", "test_simplecache"],
+        ["python3", "-m", "unittest", "test_spotipy_retry"],
+        ["python3", "-m", "unittest", "test_spotty_audio_streamer"],
+        ["python3", "-m", "unittest", "test_spotty_auth"]
+      ]
     },
     {
       "repository": "primez-x/skin.arctic.fuse.3",
-      "ref": "primez"
+      "ref": "primez",
+      "tests": [
+        ["python3", "-m", "unittest", "discover", "-s", "tests"]
+      ]
     },
     {
       "repository": "jurialmunkey/resource.font.robotocjksc",
@@ -55,15 +73,27 @@
     },
     {
       "repository": "primez-x/service.upnext",
-      "ref": "master"
+      "ref": "master",
+      "tests": [
+        ["python3", "-m", "pytest", "-q", "-o", "addopts=", "tests"]
+      ],
+      "test_env": {
+        "PYTHONPATH": "resources/lib:tests"
+      }
     },
     {
       "repository": "primez-x/service.nexttrack",
-      "ref": "main"
+      "ref": "main",
+      "tests": [
+        ["python3", "-m", "unittest", "discover", "-s", "tests"]
+      ]
     },
     {
       "repository": "primez-x/service.smartsubtitles",
-      "ref": "main"
+      "ref": "main",
+      "tests": [
+        ["python3", "-m", "unittest", "discover", "-s", "tests"]
+      ]
     }
   ]
 }
