@@ -69,6 +69,8 @@ Add the webhook to:
 - `primez-x/plugin.video.plexkodiconnect`
 - `primez-x/plugin.audio.spotifykodiconnect`
 - `primez-x/skin.arctic.fuse.3`
+- `primez-x/plugin.video.themoviedb.helper`
+- `primez-x/service.upnext`
 - `primez-x/service.nexttrack`
 - `primez-x/service.smartsubtitles`
 

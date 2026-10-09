@@ -5,6 +5,8 @@ const DEFAULT_ALLOWED_REPOS = {
   "primez-x/plugin.video.plexkodiconnect": "python3-beta",
   "primez-x/plugin.audio.spotifykodiconnect": "master",
   "primez-x/skin.arctic.fuse.3": "primez",
+  "primez-x/plugin.video.themoviedb.helper": "nexus",
+  "primez-x/service.upnext": "master",
   "primez-x/service.nexttrack": "main",
   "primez-x/service.smartsubtitles": "main",
 };

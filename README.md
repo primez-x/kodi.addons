@@ -29,6 +29,7 @@ No source add-on repository needs a PAT or an Actions secret.
 - `primez-x/plugin.video.plexkodiconnect` from `python3-beta`
 - `primez-x/plugin.audio.spotifykodiconnect` from `master`
 - `primez-x/skin.arctic.fuse.3` from `primez`
+- `primez-x/plugin.video.themoviedb.helper` from `nexus`
 - `primez-x/service.upnext` from `master`
 - `primez-x/service.nexttrack` from `main`
 - `primez-x/service.smartsubtitles` from `main`
@@ -40,8 +41,7 @@ The repository also publishes pinned Jurial dependency packages needed by Arctic
 - `jurialmunkey/resource.font.robotocjksc` from `v0.0.3`
 - `jurialmunkey/script.module.infotagger` from `v0.0.8`
 - `jurialmunkey/script.module.jurialmunkey` from `v0.2.35`
-- `jurialmunkey/script.skinvariables` from `v2.2.1`
+- `jurialmunkey/script.skinvariables` from `v2.2.2`
 - `jurialmunkey/script.texturemaker` from commit `a535b1c2924c121c0b1e1a3ea88685f027ec17fe`
-- `jurialmunkey/plugin.video.themoviedb.helper` from `v6.15.6`
 
 Run the **Publish Kodi repository** workflow manually any time you want to rebuild the repository without waiting for a source add-on push.
