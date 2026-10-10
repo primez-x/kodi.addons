@@ -19,6 +19,8 @@ import zipfile
 from pathlib import Path, PurePosixPath
 import xml.etree.ElementTree as ET
 
+import publish_check
+
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "addons.json"
 OUTPUT_DIR = ROOT / os.environ.get("KODI_OUTPUT_DIR", "public")
@@ -60,6 +62,9 @@ DEFAULT_EXCLUDES = (
     "node_modules",
     "node_modules/*",
     "pyproject.toml",
+    ".githooks",
+    ".githooks/*",
+    ".primez-publish.json",
 )
 
 
@@ -462,6 +467,22 @@ def write_source_manifest(sources: list[dict], output_dir: Path) -> None:
     (output_dir / "source-manifest.json").write_text(content, encoding="utf-8", newline="\n")
 
 
+def source_publish_config(addon_root: Path, addon_config: dict) -> dict:
+    """The add-on's own .primez-publish.json test settings win over addons.json."""
+    config_path = addon_root / publish_check.CONFIG_FILE
+    if not config_path.is_file():
+        return addon_config
+    try:
+        source_config = json.loads(config_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise RuntimeError(f"{publish_check.CONFIG_FILE} is not valid JSON: {exc}") from exc
+    merged = dict(addon_config)
+    for key in ("tests", "test_env"):
+        if key in source_config:
+            merged[key] = source_config[key]
+    return merged
+
+
 def check_candidate(
     addon_id: str,
     version: str,
@@ -481,7 +502,13 @@ def check_candidate(
         published_sources,
         source_sha,
     )
-    run_addon_tests(addon_root, addon_config, label)
+    try:
+        _addon_id, _version, news = publish_check.addon_info(
+            (addon_root / "addon.xml").read_bytes(), label)
+        publish_check.check_news(version, news)
+    except publish_check.CheckError as exc:
+        raise RuntimeError(f"{label}: {exc}") from exc
+    run_addon_tests(addon_root, source_publish_config(addon_root, addon_config), label)
 
 
 def published_source_for(repository: str, published_sources: dict[str, dict]) -> dict | None:

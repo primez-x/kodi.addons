@@ -21,17 +21,21 @@ PASSING_TEST = ["python3", "-c", "import sys; sys.exit(0)"]
 FAILING_TEST = ["python3", "-c", "import sys; print('boom'); sys.exit(1)"]
 
 
-def addon_zip(addon_id, version, failing=False):
+def addon_zip(addon_id, version, failing=False, news=None, publish_config=None):
     """A GitHub zipball of an add-on whose test passes or fails."""
+    news = f"v{version}\n- Changes" if news is None else news
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr(
             f"owner-repo-abc/addon.xml",
             f'<addon id="{addon_id}" name="{addon_id}" version="{version}" provider-name="x">'
-            '<extension point="xbmc.addon.metadata"><platform>all</platform></extension>'
+            '<extension point="xbmc.addon.metadata"><platform>all</platform>'
+            f"<news>{news}</news></extension>"
             "</addon>",
         )
         archive.writestr("owner-repo-abc/marker.txt", "fail" if failing else "pass")
+        if publish_config is not None:
+            archive.writestr("owner-repo-abc/.primez-publish.json", json.dumps(publish_config))
     return buffer.getvalue()
 
 
@@ -44,7 +48,7 @@ class BuildRepositoryTests(unittest.TestCase):
             sys.modules.pop("build_repository", None)
             self.builder = importlib.import_module("build_repository")
         self.builder.OUTPUT_DIR = self.output
-        # repository -> {sha: (version, failing)}
+        # repository -> {sha: (version, failing, extra zip arguments)}
         self.commits = {}
         self.heads = {}
         self.published = {}
@@ -58,8 +62,8 @@ class BuildRepositoryTests(unittest.TestCase):
         )
 
         def download(repository, sha, target):
-            version, failing = self.commits[repository][sha]
-            target.write_bytes(addon_zip(repository.split("/")[1], version, failing))
+            version, failing, extra = self.commits[repository][sha]
+            target.write_bytes(addon_zip(repository.split("/")[1], version, failing, **extra))
 
         builder.download_archive = download
         builder.fetch_published_addon_versions = lambda config: dict(self.published_versions)
@@ -67,17 +71,19 @@ class BuildRepositoryTests(unittest.TestCase):
             entry["id"]: entry for entry in self.published.values()
         }
         real_run_tests = builder.run_addon_tests
+        self.test_configs = []
 
         def run_tests(addon_root, addon_config, label):
             self.tests_run.append(label)
+            self.test_configs.append(addon_config)
             failing = (addon_root / "marker.txt").read_text() == "fail"
             config = dict(addon_config, tests=[FAILING_TEST if failing else PASSING_TEST])
             real_run_tests(addon_root, config, label)
 
         builder.run_addon_tests = run_tests
 
-    def add(self, repository, sha, version, failing=False, head=True):
-        self.commits.setdefault(repository, {})[sha] = (version, failing)
+    def add(self, repository, sha, version, failing=False, head=True, **extra):
+        self.commits.setdefault(repository, {})[sha] = (version, failing, extra)
         if head:
             self.heads[repository] = sha
 
@@ -132,6 +138,33 @@ class BuildRepositoryTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "version must increase"):
             self.build(["o/a"], source=("o/a", "a2"))
+
+    def test_source_publish_without_a_news_entry_fails_the_run(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.1", news="v1.0.0\n- Old entry")
+
+        with self.assertRaisesRegex(RuntimeError, "news"):
+            self.build(["o/a"], source=("o/a", "a2"))
+
+    def test_the_addon_repository_config_provides_its_tests(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.1", publish_config={
+            "branch": "main", "tests": [["python3", "-m", "own"]], "test_env": {"X": "1"}})
+
+        self.build(["o/a"], source=("o/a", "a2"))
+
+        self.assertEqual(self.test_configs[0]["tests"], [["python3", "-m", "own"]])
+        self.assertEqual(self.test_configs[0]["test_env"], {"X": "1"})
+
+    def test_hook_files_are_not_packaged(self):
+        self.add("o/a", "a1", "1.0.0", publish_config={"branch": "main"})
+
+        self.build(["o/a"])
+
+        with zipfile.ZipFile(self.output / "a" / "a-1.0.0.zip") as archive:
+            self.assertNotIn("a/.primez-publish.json", archive.namelist())
 
     def test_other_addon_without_version_bump_keeps_its_published_commit(self):
         self.add("o/a", "a1", "1.0.0")
