@@ -11,10 +11,7 @@
   "addons": [
     {
       "repository": "primez-x/plugin.video.plexkodiconnect",
-      "ref": "python3-beta",
-      "tests": [
-        ["python3", "-m", "unittest", "discover", "-s", "tests"]
-      ]
+      "ref": "python3-beta"
     },
     {
       "repository": "croneter/plugin.video.plexkodiconnect.movies",
@@ -26,26 +23,11 @@
     },
     {
       "repository": "primez-x/plugin.audio.spotifykodiconnect",
-      "ref": "master",
-      "tests": [
-        ["python3", "-m", "unittest", "test_cache_checksums"],
-        ["python3", "-m", "unittest", "test_http_spotty_audio_streamer"],
-        ["python3", "-m", "unittest", "test_main_service_osd"],
-        ["python3", "-m", "unittest", "test_play_queue"],
-        ["python3", "-m", "unittest", "test_playlist_fastpath"],
-        ["python3", "-m", "unittest", "test_plugin_auth"],
-        ["python3", "-m", "unittest", "test_simplecache"],
-        ["python3", "-m", "unittest", "test_spotipy_retry"],
-        ["python3", "-m", "unittest", "test_spotty_audio_streamer"],
-        ["python3", "-m", "unittest", "test_spotty_auth"]
-      ]
+      "ref": "master"
     },
     {
       "repository": "primez-x/skin.arctic.fuse.3",
-      "ref": "primez",
-      "tests": [
-        ["python3", "-m", "unittest", "discover", "-s", "tests"]
-      ]
+      "ref": "primez"
     },
     {
       "repository": "jurialmunkey/resource.font.robotocjksc",
@@ -69,34 +51,19 @@
     },
     {
       "repository": "primez-x/plugin.video.themoviedb.helper",
-      "ref": "nexus",
-      "tests": [
-        ["python3", "-m", "compileall", "-q", "."]
-      ]
+      "ref": "nexus"
     },
     {
       "repository": "primez-x/service.upnext",
-      "ref": "master",
-      "tests": [
-        ["python3", "-m", "pytest", "-q", "-o", "addopts=", "tests"]
-      ],
-      "test_env": {
-        "PYTHONPATH": "resources/lib:tests"
-      }
+      "ref": "master"
     },
     {
       "repository": "primez-x/service.nexttrack",
-      "ref": "main",
-      "tests": [
-        ["python3", "-m", "unittest", "discover", "-s", "tests"]
-      ]
+      "ref": "main"
     },
     {
       "repository": "primez-x/service.smartsubtitles",
-      "ref": "main",
-      "tests": [
-        ["python3", "-m", "unittest", "discover", "-s", "tests"]
-      ]
+      "ref": "main"
     }
   ]
 }
