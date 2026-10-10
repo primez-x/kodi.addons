@@ -40,13 +40,14 @@ class PrePushTests(unittest.TestCase):
             "tests": tests or [["python3", "-c", "import sys; sys.exit(0)"]],
         }))
 
-    def commit(self, version, news):
+    def commit(self, version, news=None, message=None):
+        news = f"v{version}\n- Change" if news is None else news
         (self.repo / "addon.xml").write_text(
             f'<addon id="a" name="a" version="{version}" provider-name="x">'
             '<extension point="xbmc.addon.metadata">'
             f"<news>{news}</news></extension></addon>")
         self.git("add", "-A")
-        self.git("commit", "-q", "-m", version)
+        self.git("commit", "-q", "-m", message or version)
         return self.git("rev-parse", "HEAD")
 
     def push(self, sha, remote_sha=None, branch="main"):
@@ -75,6 +76,29 @@ class PrePushTests(unittest.TestCase):
             sha = self.commit(version, news)
             self.assertEqual(self.push(sha), 0, news)
             self.base = sha
+
+    def test_each_component_may_step_by_one_resetting_the_rest(self):
+        for version in ("1.0.1", "1.1.0", "2.0.0"):
+            self.assertEqual(self.push(self.commit(version)), 0, version)
+            self.git("reset", "-q", "--hard", self.base)
+
+    def test_skipped_or_unreset_versions_are_rejected(self):
+        for version in ("1.0.2", "1.1.1", "2.1.0", "1.0.0.1", "1.1"):
+            self.assertEqual(self.push(self.commit(version)), 1, version)
+            self.git("reset", "-q", "--hard", self.base)
+
+    def test_declared_version_jump_is_allowed(self):
+        sha = self.commit("1.4.0", message="Merge upstream\n\nVersion-Jump: adopt upstream 1.4.0")
+        self.assertEqual(self.push(sha), 0)
+
+    def test_version_jump_still_has_to_increase(self):
+        sha = self.commit("0.9.0", message="Downgrade\n\nVersion-Jump: nope")
+        self.assertEqual(self.push(sha), 1)
+
+    def test_four_component_fork_versions_step_the_same_way(self):
+        self.base = self.commit("6.17.3.2")
+        self.assertEqual(self.push(self.commit("6.17.3.3")), 0)
+        self.assertEqual(self.push(self.commit("6.17.3.5")), 1)
 
     def test_failing_tests_are_rejected(self):
         self.write_config([["python3", "-c", "import sys; sys.exit(1)"]])
