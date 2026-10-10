@@ -40,8 +40,10 @@ Do not commit `wrangler.toml`, private keys, tokens, or webhook secrets. Store W
 
 ## Publish Rules For Add-on Repositories
 
+Version numbers follow `VERSIONING.md` (one step per push: raise one component by 1 and reset the ones after it; which component follows the major/minor/patch rules there).
+
 Every published add-on repository carries the same rules, enforced in three places:
 
-1. `.githooks/pre-push` runs `.githooks/publish_check.py` (a verbatim copy of `tools/publish_check.py` here — update the master copy and re-copy it to every repository). A push to the tracked branch named in the repository's `.primez-publish.json` is refused unless `addon.xml` parses, its version is greater than the branch tip's, the first `<news>` line names the new version, and every `tests` command passes on an export of the pushed commit. Enable it in a clone with `git config core.hooksPath .githooks`; each repository's `.claude/settings.json` does this at session start.
+1. `.githooks/pre-push` runs `.githooks/publish_check.py` (a verbatim copy of `tools/publish_check.py` here — update the master copy and re-copy it to every repository). A push to the tracked branch named in the repository's `.primez-publish.json` is refused unless `addon.xml` parses, its version is exactly one step above the branch tip's (or the commit carries a `Version-Jump:` line), the first `<news>` line names the new version, and every `tests` command passes on an export of the pushed commit. Enable it in a clone with `git config core.hooksPath .githooks`; each repository's `.claude/settings.json` does this at session start.
 2. `.github/workflows/publish-check.yml` runs `publish_check.py ci` on pushes to the tracked branch and on pull requests, comparing against the version published on GitHub Pages.
 3. `tools/build_repository.py` applies the same version, news and test rules at publish time. Test commands come from the add-on's own `.primez-publish.json` (`addons.json` entries may still carry `tests`/`test_env` as a fallback for repositories without one). `.githooks/` and `.primez-publish.json` are never packaged.
