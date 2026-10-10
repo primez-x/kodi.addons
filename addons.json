@@ -69,7 +69,10 @@
     },
     {
       "repository": "primez-x/plugin.video.themoviedb.helper",
-      "ref": "nexus"
+      "ref": "nexus",
+      "tests": [
+        ["python3", "-m", "compileall", "-q", "."]
+      ]
     },
     {
       "repository": "primez-x/service.upnext",
