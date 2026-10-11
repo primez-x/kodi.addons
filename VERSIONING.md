@@ -6,14 +6,26 @@ number, not by commit. These rules decide the next version deterministically.
 
 ## Pushes that are not releases
 
-A push that changes only files the add-on zip never contains is not a release and
+A push that does not change what the deployed add-on does is not a release and
 must **not** bump the version, so Kodi is not offered an update that changes
-nothing: tests, CI and hooks (`.github`, `.githooks`), `docs`, READMEs,
-`CLAUDE.md`/`AGENTS.md`, `.primez-publish.json` (the full list is
-`NON_SHIPPED_PATTERNS` in `publish_check.py`, kept equal to the publish's
-`DEFAULT_EXCLUDES`). The pre-push hook and CI accept it without a version step or
-news entry (its tests still run) and the publish keeps the published package. If
-any shipped file changes, the push is a release and the rules below apply.
+nothing. Two kinds:
+
+- **Only non-shipped files changed**: tests, CI and hooks (`.github`, `.githooks`),
+  `docs`, any Markdown (`CLAUDE.md`, `AGENTS.md`, READMEs), dev tool configs
+  (`Makefile`, `tox.ini`, `.pylintrc`, `requirements*.txt`, …) and
+  `.primez-publish.json`. The full list is `NON_SHIPPED_PATTERNS` in
+  `publish_check.py`, kept equal to the publish's `DEFAULT_EXCLUDES`, so none of
+  these are in the zip. Detected automatically.
+- **Shipped files changed without any effect**: comments, formatting, renaming a
+  local variable, removing dead code. Add `No-Release: <reason>` to the message
+  of the commit at the tip of the push. Anything a user or another add-on could
+  notice (behaviour, strings, layout, art, settings) is a release, whatever the
+  size.
+
+The pre-push hook and CI accept a non-release without a version step or news entry
+(its tests still run); the publish keeps the published package, and the change
+ships with the next real release. Changing `addon.xml`'s version always makes the
+push a release.
 
 ## One step per push
 
@@ -75,5 +87,6 @@ message of the commit at the tip of the push. The version must still increase.
 - Never lower a version or reuse a published one.
 - Never skip versions to "make room" or to reset a large patch number — a large
   patch number is fine; move to the next minor only when a release qualifies.
-- Never push a change to a shipped file without a version step and a news entry.
-- Never bump the version for a push that changes only non-shipped files.
+- Never push a change that affects the deployed add-on without a version step and
+  a news entry, and never use `No-Release` to skip one.
+- Never bump the version for a push that does not change the deployed add-on.

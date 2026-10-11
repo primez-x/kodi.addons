@@ -133,12 +133,24 @@ class BuildRepositoryTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Tests failed for o/a@a2"):
             self.build(["o/a"], source=("o/a", "a2"))
 
-    def test_source_publish_without_version_bump_fails_the_run(self):
+    def test_source_publish_without_version_bump_keeps_the_published_package(self):
+        # A same-version commit is never shipped: the hook and CI decide whether
+        # it was a legitimate non-release (No-Release) or a missing bump.
         self.add("o/a", "a1", "1.0.0")
         self.publish_state("o/a", "a1")
         self.add("o/a", "a2", "1.0.0", files={"resources/lib/code.py": "changed"})
 
-        with self.assertRaisesRegex(RuntimeError, "version must increase"):
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            entries = self.build(["o/a"], source=("o/a", "a2"))
+        self.assertEqual("a1", entries["o/a"]["sha"])
+        self.assertIn("WARNING", out.getvalue())
+
+    def test_source_publish_that_lowers_the_version_still_fails(self):
+        self.add("o/a", "a1", "1.0.1")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.0")
+
+        with self.assertRaises(RuntimeError):
             self.build(["o/a"], source=("o/a", "a2"))
 
     def test_source_publish_of_non_shipped_changes_keeps_the_published_package(self):
@@ -147,6 +159,7 @@ class BuildRepositoryTests(unittest.TestCase):
         self.publish_state("o/a", "a1")
         self.add("o/a", "a2", "1.0.0", files={
             "CLAUDE.md": "notes", "AGENTS.md": "notes", "tests/test_x.py": "", "docs/x.md": "",
+            "Makefile": "", "tox.ini": "", "requirements.txt": "", "notes/design.md": "",
         })
 
         entries = self.build(["o/a"], source=("o/a", "a2"))

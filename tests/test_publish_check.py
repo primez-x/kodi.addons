@@ -135,6 +135,20 @@ class PrePushTests(unittest.TestCase):
                                  ".github/workflows/x.yml": "", "README.md": ""})
         self.assertEqual(self.push(sha), 0)
 
+    def test_markdown_and_dev_tool_configs_are_not_releases(self):
+        sha = self.commit_files({"resources/notes.md": "", "Makefile": "", "tox.ini": "",
+                                 ".pylintrc": "", "requirements.txt": "", "CONTRIBUTING.md": ""})
+        self.assertEqual(self.push(sha), 0)
+
+    def test_declared_no_release_lets_inert_shipped_changes_through(self):
+        sha = self.commit_files({"resources/lib/code.py": "# comment only"},
+                                message="Fix a comment\n\nNo-Release: comment only")
+        self.assertEqual(self.push(sha), 0)
+
+    def test_no_release_does_not_cover_a_version_change(self):
+        sha = self.commit("1.0.2", message="Skip\n\nNo-Release: nope")
+        self.assertEqual(self.push(sha), 1)
+
     def test_a_shipped_change_still_needs_the_version_step(self):
         sha = self.commit_files({"CLAUDE.md": "notes", "resources/lib/code.py": "x = 1"})
         self.assertEqual(self.push(sha), 1)

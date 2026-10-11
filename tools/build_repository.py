@@ -67,6 +67,19 @@ DEFAULT_EXCLUDES = (
     ".primez-publish.json",
     "CLAUDE.md",
     "AGENTS.md",
+    "*.md",
+    "CONTRIBUTING",
+    "CONTRIBUTING.*",
+    ".pylintrc",
+    "pylintrc",
+    ".flake8",
+    "setup.cfg",
+    "tox.ini",
+    "Makefile",
+    "requirements*.txt",
+    "codecov.yml",
+    ".editorconfig",
+    ".pre-commit-config.yaml",
 )
 
 
@@ -602,20 +615,22 @@ def build() -> None:
             exclude_patterns.extend(addon_config.get("exclude", []))
             if (not already_published and published is not None
                     and published.get("version") == version):
-                # Same version and nothing shipped changed (docs, tests, CI only):
-                # not a release, so keep the published commit without failing.
+                # Same version: not a release (non-shipped files only, or shipped
+                # changes declared No-Release; the pre-push hook and CI enforce
+                # which). Keep the published commit without failing the run.
                 published_root = fetch(published["sha"], "__published")
-                if shipped_files(published_root, exclude_patterns) == shipped_files(
-                        addon_root, exclude_patterns):
-                    print(
-                        f"{label}: only files that are not shipped changed since "
-                        f"{repository}@{published['sha'][:12]} ({version}); not a release, "
-                        "keeping the published package"
-                    )
-                    source_sha = published["sha"]
-                    ref = source_sha
-                    addon_root = published_root
-                    already_published = True
+                unchanged = shipped_files(published_root, exclude_patterns) == shipped_files(
+                    addon_root, exclude_patterns)
+                print(
+                    f"{'' if unchanged else 'WARNING: '}{label}: same version {version} as the "
+                    f"published {repository}@{published['sha'][:12]}"
+                    f"{'; only files that are not shipped changed' if unchanged else ' with shipped changes'}"
+                    "; not a release, keeping the published package"
+                )
+                source_sha = published["sha"]
+                ref = source_sha
+                addon_root = published_root
+                already_published = True
             if not already_published and (strict or published is not None):
                 try:
                     check_candidate(
