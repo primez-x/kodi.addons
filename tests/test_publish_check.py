@@ -120,6 +120,37 @@ class PrePushTests(unittest.TestCase):
         sha = self.commit("1.0.1", "v1.0.1\n- Fix")
         self.assertEqual(self.push(sha, remote_sha="0" * 40), 0)
 
+    def commit_files(self, files, message="Docs"):
+        for name, content in files.items():
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", message)
+        return self.git("rev-parse", "HEAD")
+
+    def test_non_shipped_changes_need_no_version_step(self):
+        sha = self.commit_files({"CLAUDE.md": "notes", "AGENTS.md": "notes",
+                                 "tests/test_x.py": "", "docs/guide.md": "",
+                                 ".github/workflows/x.yml": "", "README.md": ""})
+        self.assertEqual(self.push(sha), 0)
+
+    def test_a_shipped_change_still_needs_the_version_step(self):
+        sha = self.commit_files({"CLAUDE.md": "notes", "resources/lib/code.py": "x = 1"})
+        self.assertEqual(self.push(sha), 1)
+
+    def test_non_release_pushes_still_run_the_tests(self):
+        self.write_config([["python3", "-c", "import sys; sys.exit(1)"]])
+        sha = self.commit_files({"CLAUDE.md": "notes"})
+        self.assertEqual(self.push(sha), 1)
+
+    def test_manual_check_knows_non_release_commits(self):
+        self.git("update-ref", "refs/remotes/origin/main", self.base)
+        sha = self.commit_files({"CLAUDE.md": "notes"})
+        self.assertEqual(self.check.main(["publish_check.py", "check", sha]), 0)
+        self.commit_files({"resources/lib/code.py": "x = 1"})
+        self.assertEqual(self.check.main(["publish_check.py", "check", "HEAD"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

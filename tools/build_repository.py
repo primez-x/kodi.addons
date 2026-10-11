@@ -65,6 +65,8 @@ DEFAULT_EXCLUDES = (
     ".githooks",
     ".githooks/*",
     ".primez-publish.json",
+    "CLAUDE.md",
+    "AGENTS.md",
 )
 
 
@@ -324,6 +326,16 @@ def should_exclude(relative_path: str, patterns: list[str]) -> bool:
         if part in {".git", ".github", "__pycache__"}:
             return True
     return any(fnmatch.fnmatch(relative_path, pattern) for pattern in patterns)
+
+
+def shipped_files(source_root: Path, exclude_patterns: list[str]) -> dict[str, bytes]:
+    """The files zip_addon would pack, keyed by relative path."""
+    return {
+        file_path.relative_to(source_root).as_posix(): file_path.read_bytes()
+        for file_path in sorted(source_root.rglob("*"))
+        if file_path.is_file()
+        and not should_exclude(file_path.relative_to(source_root).as_posix(), exclude_patterns)
+    }
 
 
 def zip_addon(source_root: Path, addon_id: str, version: str, output_dir: Path, exclude_patterns: list[str]) -> Path:
@@ -586,6 +598,24 @@ def build() -> None:
             addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
             label = f"{repository}@{source_sha[:12]}"
             already_published = published is not None and published.get("sha") == source_sha
+            exclude_patterns = list(DEFAULT_EXCLUDES)
+            exclude_patterns.extend(addon_config.get("exclude", []))
+            if (not already_published and published is not None
+                    and published.get("version") == version):
+                # Same version and nothing shipped changed (docs, tests, CI only):
+                # not a release, so keep the published commit without failing.
+                published_root = fetch(published["sha"], "__published")
+                if shipped_files(published_root, exclude_patterns) == shipped_files(
+                        addon_root, exclude_patterns):
+                    print(
+                        f"{label}: only files that are not shipped changed since "
+                        f"{repository}@{published['sha'][:12]} ({version}); not a release, "
+                        "keeping the published package"
+                    )
+                    source_sha = published["sha"]
+                    ref = source_sha
+                    addon_root = published_root
+                    already_published = True
             if not already_published and (strict or published is not None):
                 try:
                     check_candidate(
@@ -609,11 +639,9 @@ def build() -> None:
                     )
                     source_sha = kept_sha
                     ref = kept_sha
-                    addon_root = fetch(source_sha, "__published")
+                    addon_root = fetch(source_sha, "__published_kept")
                     addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
 
-            exclude_patterns = list(DEFAULT_EXCLUDES)
-            exclude_patterns.extend(addon_config.get("exclude", []))
             package_path = zip_addon(addon_root, addon_id, version, OUTPUT_DIR, exclude_patterns)
             copy_repository_assets(addon_root, addon_id, version, addon_xml_root, OUTPUT_DIR)
             source_entries.append(

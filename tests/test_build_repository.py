@@ -21,7 +21,7 @@ PASSING_TEST = ["python3", "-c", "import sys; sys.exit(0)"]
 FAILING_TEST = ["python3", "-c", "import sys; print('boom'); sys.exit(1)"]
 
 
-def addon_zip(addon_id, version, failing=False, news=None, publish_config=None):
+def addon_zip(addon_id, version, failing=False, news=None, publish_config=None, files=None):
     """A GitHub zipball of an add-on whose test passes or fails."""
     news = f"v{version}\n- Changes" if news is None else news
     buffer = io.BytesIO()
@@ -36,6 +36,8 @@ def addon_zip(addon_id, version, failing=False, news=None, publish_config=None):
         archive.writestr("owner-repo-abc/marker.txt", "fail" if failing else "pass")
         if publish_config is not None:
             archive.writestr("owner-repo-abc/.primez-publish.json", json.dumps(publish_config))
+        for name, content in (files or {}).items():
+            archive.writestr(f"owner-repo-abc/{name}", content)
     return buffer.getvalue()
 
 
@@ -134,10 +136,36 @@ class BuildRepositoryTests(unittest.TestCase):
     def test_source_publish_without_version_bump_fails_the_run(self):
         self.add("o/a", "a1", "1.0.0")
         self.publish_state("o/a", "a1")
-        self.add("o/a", "a2", "1.0.0")
+        self.add("o/a", "a2", "1.0.0", files={"resources/lib/code.py": "changed"})
 
         with self.assertRaisesRegex(RuntimeError, "version must increase"):
             self.build(["o/a"], source=("o/a", "a2"))
+
+    def test_source_publish_of_non_shipped_changes_keeps_the_published_package(self):
+        # Docs, CLAUDE.md, tests or CI only: not a release, so no version step
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.0", files={
+            "CLAUDE.md": "notes", "AGENTS.md": "notes", "tests/test_x.py": "", "docs/x.md": "",
+        })
+
+        entries = self.build(["o/a"], source=("o/a", "a2"))
+        self.assertEqual("a1", entries["o/a"]["sha"])
+        self.assertEqual("1.0.0", entries["o/a"]["version"])
+        self.assertEqual([], self.tests_run)
+
+    def test_agent_notes_are_not_packaged(self):
+        self.add("o/a", "a1", "1.0.0", files={"CLAUDE.md": "notes", "AGENTS.md": "notes"})
+        self.build(["o/a"])
+        with zipfile.ZipFile(self.output / "a" / "a-1.0.0.zip") as archive:
+            names = archive.namelist()
+        self.assertNotIn("a/CLAUDE.md", names)
+        self.assertNotIn("a/AGENTS.md", names)
+
+    def test_publish_check_treats_the_same_paths_as_not_shipped(self):
+        sys.modules.pop("publish_check", None)
+        publish_check = importlib.import_module("publish_check")
+        self.assertEqual(set(self.builder.DEFAULT_EXCLUDES), set(publish_check.NON_SHIPPED_PATTERNS))
 
     def test_source_publish_without_a_news_entry_fails_the_run(self):
         self.add("o/a", "a1", "1.0.0")
