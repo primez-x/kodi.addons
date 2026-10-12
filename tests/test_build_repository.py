@@ -163,7 +163,9 @@ class BuildRepositoryTests(unittest.TestCase):
         })
 
         entries = self.build(["o/a"], source=("o/a", "a2"))
-        self.assertEqual("a1", entries["o/a"]["sha"])
+        # same package; the manifest follows the branch, which may no longer
+        # contain a1 (e.g. after a history rewrite)
+        self.assertEqual("a2", entries["o/a"]["sha"])
         self.assertEqual("1.0.0", entries["o/a"]["version"])
         self.assertEqual([], self.tests_run)
 
@@ -213,7 +215,8 @@ class BuildRepositoryTests(unittest.TestCase):
         self.add("o/a", "a2", "1.0.1")
         self.add("o/b", "b1", "2.0.0")
         self.publish_state("o/b", "b1")
-        self.add("o/b", "b2", "2.0.0")  # pushed without a bump
+        # a shipped change pushed without a bump
+        self.add("o/b", "b2", "2.0.0", files={"resources/lib/code.py": "changed"})
 
         built = self.build(["o/a", "o/b"], source=("o/a", "a2"))
 
