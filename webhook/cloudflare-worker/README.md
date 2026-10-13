@@ -69,9 +69,10 @@ Add the webhook to:
 - `primez-x/plugin.video.plexkodiconnect`
 - `primez-x/plugin.audio.spotifykodiconnect`
 - `primez-x/skin.arctic.fuse.3`
+- `primez-x/resource.images.arctic.fuse.3`
 - `primez-x/plugin.video.themoviedb.helper`
 - `primez-x/service.upnext`
 - `primez-x/service.nexttrack`
 - `primez-x/service.smartsubtitles`
 
-The Worker uses seven repository and branch pairs from `src/index.js` when `ALLOWED_REPOS_JSON` is unset. Set `ALLOWED_REPOS_JSON` only when a custom allowlist is needed. The JSON object replaces the full default allowlist and may include custom `owner/repository` entries; a partial map allows only the listed repositories. Invalid JSON, repository names, or branch values return a configuration error and fail closed.
+The Worker uses eight repository and branch pairs from `src/index.js` when `ALLOWED_REPOS_JSON` is unset. Set `ALLOWED_REPOS_JSON` only when a custom allowlist is needed. The JSON object replaces the full default allowlist and may include custom `owner/repository` entries; a partial map allows only the listed repositories. Invalid JSON, repository names, or branch values return a configuration error and fail closed.
