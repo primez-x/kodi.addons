@@ -121,6 +121,20 @@ def resolve_source_sha(repository: str, ref: str) -> str:
     return sha
 
 
+def fetch_source_commit_message(repository: str, sha: str) -> str:
+    quoted_sha = urllib.parse.quote(sha, safe="")
+    url = f"https://api.github.com/repos/{repository}/commits/{quoted_sha}"
+    try:
+        data = json.loads(github_request(url).decode("utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Cannot fetch commit metadata for {repository}@{sha}: {exc}") from exc
+    commit = data.get("commit") if isinstance(data, dict) else None
+    message = commit.get("message") if isinstance(commit, dict) else None
+    if not isinstance(message, str) or data.get("sha") != sha:
+        raise RuntimeError(f"Invalid commit metadata for {repository}@{sha}")
+    return message
+
+
 def download_archive(repository: str, ref: str, target: Path) -> None:
     quoted_ref = urllib.parse.quote(ref, safe="")
     url = f"https://api.github.com/repos/{repository}/zipball/{quoted_ref}"
@@ -351,6 +365,19 @@ def shipped_files(source_root: Path, exclude_patterns: list[str]) -> dict[str, b
     }
 
 
+def warn_shared_service_drift(addon_root: Path, addon_id: str) -> None:
+    if addon_id not in ("service.upnext", "service.nexttrack"):
+        return
+    for master in sorted((ROOT / "tools" / "service_common").glob("*.py")):
+        copy = addon_root / "resources" / "lib" / master.name
+        if not copy.is_file() or copy.read_bytes() != master.read_bytes():
+            print(
+                f"WARNING: {addon_id}/resources/lib/{master.name} differs from the shared master; "
+                "run tools/sync_service_common.py before the next release",
+                file=sys.stderr,
+            )
+
+
 def zip_addon(source_root: Path, addon_id: str, version: str, output_dir: Path, exclude_patterns: list[str]) -> Path:
     addon_output_dir = output_dir / addon_id
     addon_output_dir.mkdir(parents=True, exist_ok=True)
@@ -531,6 +558,14 @@ def check_candidate(
         _addon_id, _version, news = publish_check.addon_info(
             (addon_root / "addon.xml").read_bytes(), label)
         publish_check.check_news(version, news)
+        previous = published_versions.get(addon_id)
+        message = ""
+        if previous and publish_check.parse_version(version) not in [
+            publish_check.parse_version(candidate)
+            for candidate in publish_check.next_versions(previous)
+        ]:
+            message = fetch_source_commit_message(addon_config["repository"], source_sha)
+        publish_check.check_version_step(version, previous, source_sha, commit_message=message)
     except publish_check.CheckError as exc:
         raise RuntimeError(f"{label}: {exc}") from exc
     run_addon_tests(addon_root, source_publish_config(addon_root, addon_config), label)
@@ -634,6 +669,7 @@ def build() -> None:
                     source_sha = published["sha"]
                     ref = source_sha
                     addon_root = published_root
+                    addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
                 already_published = True
             if not already_published and (strict or published is not None):
                 try:
@@ -661,6 +697,7 @@ def build() -> None:
                     addon_root = fetch(source_sha, "__published_kept")
                     addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
 
+            warn_shared_service_drift(addon_root, addon_id)
             package_path = zip_addon(addon_root, addon_id, version, OUTPUT_DIR, exclude_patterns)
             copy_repository_assets(addon_root, addon_id, version, addon_xml_root, OUTPUT_DIR)
             source_entries.append(

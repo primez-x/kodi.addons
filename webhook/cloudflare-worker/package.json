@@ -4,13 +4,19 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node --test test/index.test.js",
+    "test:runtime": "node test/runtime.mjs"
   },
   "dependencies": {
-    "@octokit/auth-app": "latest",
-    "@octokit/request": "latest"
+    "@octokit/auth-app": "8.3.1",
+    "@octokit/request": "10.0.16"
   },
   "devDependencies": {
-    "wrangler": "latest"
+    "wrangler": "4.150.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261006.1": true
   }
 }

@@ -1,0 +1,310 @@
+# -*- coding: utf-8 -*-
+# GNU General Public License v2.0 (see COPYING or https://www.gnu.org/licenses/gpl-2.0.txt)
+
+from __future__ import absolute_import, division, unicode_literals
+import sys
+import json
+from datetime import date
+from re import split as re_split
+from time import time as epoch_time
+from xbmc import executeJSONRPC, getCondVisibility, getInfoLabel, getRegion, log as xlog, LOGDEBUG, LOGINFO
+from xbmcaddon import Addon
+from xbmcgui import Window
+from statichelper import from_unicode, to_unicode
+
+ADDON = Addon()
+HOME_WINDOW = Window(10000)
+
+# Settings that are read every service tick are cached per playback, see clear_setting_cache()
+_SETTINGS_CACHE = {}
+
+# The log settings are needed for every log() call, so cache them for a while
+LOG_SETTINGS_TTL = 30  # seconds
+_LOG_SETTINGS = {}
+
+
+def get_addon_info(key):
+    """Return add-on information"""
+    return to_unicode(ADDON.getAddonInfo(key))
+
+
+def addon_id():
+    """Return add-on ID"""
+    return get_addon_info('id')
+
+
+def addon_path():
+    """Return add-on path"""
+    return get_addon_info('path')
+
+
+def get_kodi_version():
+    """Return Kodi version number as float"""
+    build = getInfoLabel("System.BuildVersion")
+    return float(build[:4])
+
+
+def is_repeat_one():
+    """Return True when the playing playlist repeats the current item, Kodi then plays it again"""
+    return bool(getCondVisibility('Playlist.IsRepeatOne'))
+
+
+def get_property(key, window_id=10000):
+    """Get a Window property"""
+    if window_id == 10000:
+        return to_unicode(HOME_WINDOW.getProperty(key))
+    return to_unicode(Window(window_id).getProperty(key))
+
+
+def set_property(key, value, window_id=10000):
+    """Set a Window property"""
+    if window_id == 10000:
+        return HOME_WINDOW.setProperty(key, from_unicode(str(value)))
+    return Window(window_id).setProperty(key, from_unicode(str(value)))
+
+
+def clear_property(key, window_id=10000):
+    """Clear a Window property"""
+    if window_id == 10000:
+        return HOME_WINDOW.clearProperty(key)
+    return Window(window_id).clearProperty(key)
+
+
+def get_int(obj, key=None, default=-1):
+    """Returns an object or value for the given key in object, as an integer.
+       Returns default value if key or object is not available.
+       Returns value if value cannot be converted to integer."""
+
+    try:
+        val = obj.get(key, default) if key else obj
+    except (AttributeError, TypeError):
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return val if val else default
+
+
+def get_setting(key, default=None):
+    """Get an add-on setting as string"""
+    # We use Addon() here to ensure changes in settings are reflected instantly
+    try:
+        value = to_unicode(Addon().getSetting(key))
+    except RuntimeError:  # Occurs when the add-on is disabled
+        return default
+    if value == '' and default is not None:
+        return default
+    return value
+
+
+def get_setting_bool(key, default=None, cache=False):
+    """Get an add-on setting as boolean"""
+    if cache:
+        return _cached_setting(get_setting_bool, key, default)
+    try:
+        return Addon().getSettingBool(key)
+    except (AttributeError, TypeError):  # On Krypton or older, or when not a boolean
+        value = get_setting(key, default)
+        if value not in ('false', 'true'):
+            return default
+        return bool(value == 'true')
+    except RuntimeError:  # Occurs when the add-on is disabled
+        return default
+
+
+def get_setting_int(key, default=None, cache=False):
+    """Get an add-on setting as integer"""
+    if cache:
+        return _cached_setting(get_setting_int, key, default)
+    try:
+        return Addon().getSettingInt(key)
+    except (AttributeError, TypeError):  # On Krypton or older, or when not an integer
+        value = get_setting(key, default)
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    except RuntimeError:  # Occurs when the add-on is disabled
+        return default
+
+
+def _cached_setting(getter, key, default):
+    """Return a setting from the cache, reading it on first use"""
+    cache_key = (getter.__name__, key)
+    if cache_key not in _SETTINGS_CACHE:
+        _SETTINGS_CACHE[cache_key] = getter(key, default)
+    return _SETTINGS_CACHE[cache_key]
+
+
+def clear_setting_cache():
+    """Forget cached settings, used when playback starts or the settings changed"""
+    _SETTINGS_CACHE.clear()
+    _LOG_SETTINGS.clear()
+
+
+def encode_data(data, encoding='base64'):
+    """Encode data for a notification event"""
+    json_data = json.dumps(data).encode()
+    if encoding == 'base64':
+        from base64 import b64encode
+        encoded_data = b64encode(json_data)
+    elif encoding == 'hex':
+        from binascii import hexlify
+        encoded_data = hexlify(json_data)
+    else:
+        log("Unknown payload encoding type '%s'", encoding, level=0)
+        return None
+    if sys.version_info[0] > 2:
+        encoded_data = encoded_data.decode('ascii')
+    return encoded_data
+
+
+def decode_data(encoded):
+    """Decode data coming from a notification event"""
+    encoding = 'base64'
+    from binascii import Error, unhexlify
+    try:
+        json_data = unhexlify(encoded)
+    except (TypeError, Error):
+        from base64 import b64decode
+        json_data = b64decode(encoded, validate=False)
+    else:
+        encoding = 'hex'
+    # NOTE: With Python 3.5 and older json.loads() does not support bytes or bytearray, so we convert to unicode
+    return json.loads(to_unicode(json_data)), encoding
+
+
+def decode_json(data):
+    # Provider payloads are untrusted input: malformed data must read as
+    # "not JSON" (the monitors' None branch), never raise in onNotification
+    try:
+        encoded = json.loads(data)
+        if not encoded:
+            return None, None
+        return decode_data(encoded[0])
+    except Exception:  # pylint: disable=broad-except
+        return None, None
+
+
+def event(message, data=None, sender=None, encoding='base64'):
+    """Send internal notification event"""
+    data = data or {}
+    sender = sender or addon_id()
+
+    encoded = encode_data(data, encoding=encoding)
+    if not encoded:
+        return
+
+    jsonrpc(method='JSONRPC.NotifyAll', params={
+        'sender': '%s.SIGNAL' % sender,
+        'message': message,
+        'data': [encoded],
+    })
+
+
+def refresh_log_settings():
+    """Read the log settings, they are cached for LOG_SETTINGS_TTL seconds"""
+    log_level = get_setting_int('logLevel')
+    _LOG_SETTINGS.update(
+        log_level=log_level,
+        debug_logging=bool(get_global_setting('debug.showloginfo')),
+        expires=epoch_time() + LOG_SETTINGS_TTL,
+    )
+
+
+def log(msg, *args, **kwargs):
+    """Log information to the Kodi log
+
+    The message is only %-formatted with args when it is actually logged.
+    Supported keyword arguments are name and level (default: 1).
+    """
+    level = kwargs.get('level', 1)
+    if _LOG_SETTINGS.get('expires', 0) < epoch_time():
+        refresh_log_settings()
+    log_level = _LOG_SETTINGS.get('log_level')
+    debug_logging = _LOG_SETTINGS.get('debug_logging')
+    # When the logLevel setting cannot be read, log everything
+    if not debug_logging and log_level is not None and log_level < level:
+        return
+    if args:
+        if len(args) == 1 and isinstance(args[0], dict):
+            args = args[0]
+        msg = msg % args
+    if debug_logging:
+        level = LOGDEBUG
+    elif get_kodi_version() >= 19:
+        level = LOGINFO
+    else:
+        level = LOGINFO + 1
+    xlog('[%s] %s -> %s' % (addon_id(), kwargs.get('name'), from_unicode(msg)), level=level)
+
+
+def calculate_progress_steps(period, update_interval_sec=0.1):
+    """Calculate the progress percentage to subtract for each tick."""
+    period = int(period)
+    if period == 0:  # Avoid division by zero
+        return 10.0
+    return (100.0 * update_interval_sec) / period
+
+
+def jsonrpc(**kwargs):
+    """Perform JSONRPC calls"""
+    if kwargs.get('id') is None:
+        kwargs.update(id=0)
+    if kwargs.get('jsonrpc') is None:
+        kwargs.update(jsonrpc='2.0')
+    return json.loads(executeJSONRPC(json.dumps(kwargs)))
+
+
+def get_global_setting(setting):
+    """Get a Kodi setting"""
+    result = jsonrpc(method='Settings.GetSettingValue',
+                     params={'setting': setting})
+    return result.get('result', {}).get('value')
+
+
+def localize(string_id):
+    """Return the translated string from the .po language files"""
+
+    return ADDON.getLocalizedString(string_id)
+
+
+def localize_date(date_string):
+    """Localize date format"""
+    date_format = getRegion('dateshort')
+
+    try:
+        # A number of assumptions are made here about date_string
+        # format to avoid having to import dateutil or similar
+        date_object = date(*(
+            int(part)
+            for part in re_split(r'[\W]', date_string)[:3]
+        ))
+    except ValueError:
+        return date_string
+
+    return date_object.strftime(date_format)
+
+
+def localize_time(time):
+    """Localize time format"""
+    time_format = getRegion('time')
+
+    # Fix a bug in Kodi v18.5 and older causing double hours
+    # https://github.com/xbmc/xbmc/pull/17380
+    time_format = time_format.replace('%H%H:', '%H:')
+
+    # Strip off seconds
+    time_format = time_format.replace(':%S', '')
+
+    return time.strftime(time_format)
+
+
+def kodi_version():
+    """Returns full Kodi version as string"""
+    return getInfoLabel('System.BuildVersion').split(' ')[0]
+
+
+def kodi_version_major():
+    """Returns major Kodi version as integer"""
+    return int(kodi_version().split('.')[0])

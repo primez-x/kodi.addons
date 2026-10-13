@@ -10,6 +10,8 @@ import os
 import sys
 import tempfile
 import unittest
+import urllib.error
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from unittest import mock
@@ -57,10 +59,15 @@ class BuildRepositoryTests(unittest.TestCase):
         self.published_versions = {}
         self.tests_run = []
         self.env = {}
+        self.commit_messages = {}
 
         builder = self.builder
         builder.resolve_source_sha = lambda repository, ref: (
             ref if ref in self.commits[repository] else self.heads[repository]
+        )
+        self.fetch_commit_message = builder.fetch_source_commit_message
+        builder.fetch_source_commit_message = lambda repository, sha: (
+            self.commit_messages.get((repository, sha), "")
         )
 
         def download(repository, sha, target):
@@ -83,6 +90,28 @@ class BuildRepositoryTests(unittest.TestCase):
             real_run_tests(addon_root, config, label)
 
         builder.run_addon_tests = run_tests
+
+    def test_shared_service_drift_reports_missing_or_changed_copies(self):
+        master = Path(self.temp.name) / "tools" / "service_common"
+        master.mkdir(parents=True)
+        (master / "utils.py").write_text("canonical\n")
+        addon = Path(self.temp.name) / "addon"
+        (addon / "resources" / "lib").mkdir(parents=True)
+        with mock.patch.object(self.builder, "ROOT", Path(self.temp.name)), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as output:
+            self.builder.warn_shared_service_drift(addon, "service.upnext")
+            self.assertIn("utils.py", output.getvalue())
+            (addon / "resources" / "lib" / "utils.py").write_text("changed\n")
+            output.truncate(0)
+            output.seek(0)
+            self.builder.warn_shared_service_drift(addon, "service.nexttrack")
+            self.assertIn("utils.py", output.getvalue())
+            (addon / "resources" / "lib" / "utils.py").write_text("canonical\n")
+            output.truncate(0)
+            output.seek(0)
+            self.builder.warn_shared_service_drift(addon, "service.upnext")
+            self.builder.warn_shared_service_drift(addon, "plugin.video.example")
+            self.assertEqual(output.getvalue(), "")
 
     def add(self, repository, sha, version, failing=False, head=True, **extra):
         self.commits.setdefault(repository, {})[sha] = (version, failing, extra)
@@ -131,6 +160,60 @@ class BuildRepositoryTests(unittest.TestCase):
         self.add("o/a", "a2", "1.0.1", failing=True)
 
         with self.assertRaisesRegex(RuntimeError, "Tests failed for o/a@a2"):
+            self.build(["o/a"], source=("o/a", "a2"))
+
+    def test_same_version_fallback_preserves_published_metadata(self):
+        self.add("o/a", "a1", "1.0.0", news="v1.0.0\nPublished news")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.0", news="v1.0.0\nRejected news")
+        self.assertEqual(self.build(["o/a"])["o/a"]["sha"], "a1")
+        addon = ET.parse(self.output / "addons.xml").find("./addon[@id='a']")
+        self.assertEqual([line.strip() for line in addon.find("./extension/news").text.splitlines()],
+                         ["v1.0.0", "Published news"])
+
+    def test_background_metadata_network_failure_keeps_published_commit(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.3")
+        self.builder.fetch_source_commit_message = self.fetch_commit_message
+        with mock.patch.object(self.builder, "github_request", side_effect=urllib.error.URLError("offline")):
+            self.assertEqual(self.build(["o/a"])["o/a"]["sha"], "a1")
+
+    def test_commit_metadata_requires_exact_sha_and_message(self):
+        for metadata in ({"sha": "other", "commit": {"message": "Version-Jump: upstream"}},
+                         {"sha": "a2", "commit": {"message": []}}, []):
+            with self.subTest(metadata=metadata), mock.patch.object(
+                    self.builder, "github_request", return_value=json.dumps(metadata).encode()):
+                with self.assertRaisesRegex(RuntimeError, "Invalid commit metadata"):
+                    self.fetch_commit_message("o/a", "a2")
+
+    def test_source_publish_rejects_a_skipped_version(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.3")
+        with self.assertRaisesRegex(RuntimeError, "not one step above"):
+            self.build(["o/a"], source=("o/a", "a2"))
+        self.assertEqual(self.tests_run, [])
+
+    def test_other_addon_with_a_skipped_version_keeps_the_published_commit(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.3")
+        self.assertEqual(self.build(["o/a"])["o/a"]["sha"], "a1")
+        self.assertEqual(self.tests_run, [])
+
+    def test_source_publish_accepts_a_declared_version_jump(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "2.3.0")
+        self.commit_messages[("o/a", "a2")] = "Adopt upstream\n\nVersion-Jump: adopt upstream 2.3.0\n"
+        self.assertEqual(self.build(["o/a"], source=("o/a", "a2"))["o/a"]["sha"], "a2")
+
+    def test_source_publish_rejects_a_component_count_change(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.publish_state("o/a", "a1")
+        self.add("o/a", "a2", "1.0.0.1")
+        with self.assertRaisesRegex(RuntimeError, "not one step above"):
             self.build(["o/a"], source=("o/a", "a2"))
 
     def test_source_publish_without_version_bump_keeps_the_published_package(self):

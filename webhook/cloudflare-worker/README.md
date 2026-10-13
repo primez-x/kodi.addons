@@ -74,4 +74,4 @@ Add the webhook to:
 - `primez-x/service.nexttrack`
 - `primez-x/service.smartsubtitles`
 
-The Worker ignores pushes to any branch other than the branch configured in `ALLOWED_REPOS_JSON`.
+The Worker uses seven repository and branch pairs from `src/index.js` when `ALLOWED_REPOS_JSON` is unset. Set `ALLOWED_REPOS_JSON` only when a custom allowlist is needed. The JSON object replaces the full default allowlist and may include custom `owner/repository` entries; a partial map allows only the listed repositories. Invalid JSON, repository names, or branch values return a configuration error and fail closed.
