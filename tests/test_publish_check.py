@@ -1,6 +1,7 @@
 """Tests for tools/publish_check.py (the per-repository publish rules)."""
 
 import importlib
+import io
 import json
 import os
 import subprocess
@@ -9,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from contextlib import redirect_stderr
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -164,6 +166,44 @@ class PrePushTests(unittest.TestCase):
         self.assertEqual(self.check.main(["publish_check.py", "check", sha]), 0)
         self.commit_files({"resources/lib/code.py": "x = 1"})
         self.assertEqual(self.check.main(["publish_check.py", "check", "HEAD"]), 1)
+
+    def ci(self, sha, before, published_version, published_sha):
+        with mock.patch.dict(os.environ, {
+            "GITHUB_SHA": sha,
+            "GITHUB_REPOSITORY": "owner/addon",
+            "PRIMEZ_BEFORE_SHA": before,
+        }), mock.patch.object(self.check, "published_state",
+                             return_value=(published_version, published_sha)):
+            return self.check.main(["publish_check.py", "ci"])
+
+    def test_ci_test_only_correction_after_pending_release_needs_no_extra_step(self):
+        release = self.commit("1.0.1")
+        correction = self.commit_files({"tests/test_correction.py": "# Correction"})
+        self.assertEqual(self.ci(correction, release, "1.0.0", self.base), 0)
+
+    def test_ci_non_release_still_runs_tests_while_publication_is_pending(self):
+        release = self.commit("1.0.1")
+        self.write_config([["python3", "-c", "import sys; sys.exit(1)"]])
+        correction = self.commit_files({"tests/test_correction.py": "# Correction"})
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            self.assertEqual(self.ci(correction, release, "1.0.0", self.base), 1)
+        self.assertIn("tests failed", errors.getvalue())
+
+    def test_ci_shipped_change_after_pending_release_still_needs_a_step(self):
+        release = self.commit("1.0.1")
+        changed = self.commit_files({"resources/lib/code.py": "value = 1"})
+        self.assertEqual(self.ci(changed, release, "1.0.0", self.base), 1)
+
+    def test_ci_non_release_after_publication_preserves_the_version(self):
+        release = self.commit("1.0.1")
+        docs = self.commit_files({"AGENTS.md": "Correct instructions"})
+        self.assertEqual(self.ci(docs, release, "1.0.1", release), 0)
+
+    def test_ci_release_still_must_exceed_the_published_version(self):
+        release = self.commit("1.0.1")
+        changed = self.commit("1.0.2")
+        self.assertEqual(self.ci(changed, release, "1.0.2", release), 1)
 
 
 if __name__ == "__main__":

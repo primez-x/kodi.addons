@@ -28,7 +28,7 @@ Webhook-triggered source publishes must pass the builder's version guard and the
 
 Recent commits use short, imperative subject lines such as `Add Cloudflare Worker webhook receiver`, `Bump repository add-on version`, and `Publish Arctic Fuse dependency packages`. Follow that style and keep subjects specific to the changed behavior or published package set.
 
-Do not merge or dispatch a child add-on branch update unless that child repo commit includes the required `addon.xml` version bump. Kodi auto-update tracks generated add-on versions, not Git branch heads, and `tools/build_repository.py` intentionally fails webhook publishes when the source version does not increase.
+Require an `addon.xml` version bump and a news entry when a child add-on changes shipped behavior. Kodi auto-update follows add-on versions. Changes limited to tests, documentation, hooks, and other non-shipped files need no version bump. Follow `VERSIONING.md` for the complete rules.
 
 When a `kodi.addons` publish is intended to include a new commit from a mutable child branch configured in `addons.json`, push the child commit first and verify that the remote branch resolves to the intended SHA before pushing `kodi.addons` `main` or manually dispatching the publish workflow. `push` and `workflow_dispatch` runs have no `KODI_SOURCE_REPOSITORY`/`KODI_SOURCE_SHA` payload, so `tools/build_repository.py` resolves the configured branch at runtime; verify the resulting workflow log or `source-manifest.json` records the intended SHA.
 
@@ -40,10 +40,10 @@ Do not commit `wrangler.toml`, private keys, tokens, or webhook secrets. Store W
 
 ## Publish Rules For Add-on Repositories
 
-Version numbers follow `VERSIONING.md` (one step per push: raise one component by 1 and reset the ones after it; which component follows the major/minor/patch rules there).
+Version numbers follow `VERSIONING.md`. Each release push raises one component by 1 and resets later components to 0. Non-release pushes preserve the version. The major/minor/patch rules determine the component.
 
 Every published add-on repository carries the same rules, enforced in three places:
 
-1. `.githooks/pre-push` runs `.githooks/publish_check.py` (a verbatim copy of `tools/publish_check.py` here — update the master copy and re-copy it to every repository). A push to the tracked branch named in the repository's `.primez-publish.json` is refused unless `addon.xml` parses, its version is exactly one step above the branch tip's (or the commit carries a `Version-Jump:` line), the first `<news>` line names the new version, and every `tests` command passes on an export of the pushed commit. Enable it in a clone with `git config core.hooksPath .githooks`; each repository's `.claude/settings.json` does this at session start.
-2. `.github/workflows/publish-check.yml` runs `publish_check.py ci` on pushes to the tracked branch and on pull requests, comparing against the version published on GitHub Pages.
+1. `.githooks/pre-push` runs `.githooks/publish_check.py`, a verbatim copy of `tools/publish_check.py`. Update the master, then copy the validator to every repository. Enable the hook with `git config core.hooksPath .githooks`. Release checks require valid XML, one version step, matching news, and passing configured tests on an export of the commit. `Version-Jump:` permits upstream version adoption. Non-release pushes need no version step or news; inert shipped changes require a `No-Release:` reason, and every push still runs configured tests.
+2. `.github/workflows/publish-check.yml` runs `publish_check.py ci` on tracked branch pushes and pull requests. CI classifies the pushed range. Release versions must exceed the prior branch version and the published version. Non-release corrections can pass while publication is pending.
 3. `tools/build_repository.py` applies the same version, news and test rules at publish time. Test commands come from the add-on's own `.primez-publish.json` (`addons.json` entries may still carry `tests`/`test_env` as a fallback for repositories without one). `.githooks/` and `.primez-publish.json` are never packaged.
