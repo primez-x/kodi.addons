@@ -1,6 +1,7 @@
 import { createAppAuth } from "@octokit/auth-app";
 import { request as octokitRequest } from "@octokit/request";
 
+// Keep this map in JSON object syntax for the builder branch check.
 const DEFAULT_ALLOWED_REPOS = {
   "primez-x/plugin.video.plexkodiconnect": "python3-beta",
   "primez-x/plugin.audio.spotifykodiconnect": "master",
@@ -9,7 +10,7 @@ const DEFAULT_ALLOWED_REPOS = {
   "primez-x/plugin.video.themoviedb.helper": "nexus",
   "primez-x/service.upnext": "master",
   "primez-x/service.nexttrack": "main",
-  "primez-x/service.smartsubtitles": "main",
+  "primez-x/service.smartsubtitles": "main"
 };
 
 export default {
@@ -21,11 +22,13 @@ export default {
     const delivery = request.headers.get("x-github-delivery") || "";
     const event = request.headers.get("x-github-event") || "";
     const signature = request.headers.get("x-hub-signature-256") || "";
-    const body = await request.arrayBuffer();
 
-    if (!env.WEBHOOK_SECRET) {
-      return json({ error: "missing_webhook_secret" }, 500);
+    for (const name of ["WEBHOOK_SECRET", "GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"]) {
+      if (typeof env[name] !== "string" || !env[name].trim()) {
+        return json({ error: `missing_${name.toLowerCase()}`, delivery }, 500);
+      }
     }
+    const body = await request.arrayBuffer();
 
     const signatureOk = await verifyGitHubSignature(body, signature, env.WEBHOOK_SECRET);
     if (!signatureOk) {
@@ -85,12 +88,17 @@ export default {
       return json({ ok: true, ignored: "deleted_ref", sourceRepository, ref, delivery });
     }
 
-    await dispatchKodiPublish(env, {
-      repository: sourceRepository,
-      ref: expectedBranch,
-      sha,
-      delivery,
-    });
+    try {
+      await dispatchKodiPublish(env, {
+        repository: sourceRepository,
+        ref: expectedBranch,
+        sha,
+        delivery,
+      });
+    } catch {
+      console.error(JSON.stringify({ error: "dispatch_failed", delivery }));
+      return json({ error: "dispatch_failed", delivery }, 502);
+    }
 
     return json({ ok: true, dispatched: true, sourceRepository, ref, sha, delivery });
   },

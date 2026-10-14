@@ -16,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 import xml.etree.ElementTree as ET
 
@@ -355,14 +356,19 @@ def should_exclude(relative_path: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(relative_path, pattern) for pattern in patterns)
 
 
-def shipped_files(source_root: Path, exclude_patterns: list[str]) -> dict[str, bytes]:
-    """The files zip_addon would pack, keyed by relative path."""
-    return {
-        file_path.relative_to(source_root).as_posix(): file_path.read_bytes()
-        for file_path in sorted(source_root.rglob("*"))
-        if file_path.is_file()
-        and not should_exclude(file_path.relative_to(source_root).as_posix(), exclude_patterns)
-    }
+def shipped_files(source_root: Path, exclude_patterns: list[str]) -> dict[str, str]:
+    """Stream SHA-256 digests of the files zip_addon would pack."""
+    files = {}
+    for file_path in sorted(source_root.rglob("*")):
+        relative_path = file_path.relative_to(source_root).as_posix()
+        if not file_path.is_file() or should_exclude(relative_path, exclude_patterns):
+            continue
+        digest = hashlib.sha256()
+        with file_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        files[relative_path] = digest.hexdigest()
+    return files
 
 
 def warn_shared_service_drift(addon_root: Path, addon_id: str) -> None:
@@ -624,25 +630,43 @@ def build() -> None:
         print(f"WARNING: {exc}; building every add-on from its configured ref")
         published_versions, published_sources = {}, {}
 
-    with tempfile.TemporaryDirectory(prefix="kodi-addons-") as temp_name:
+    with tempfile.TemporaryDirectory(prefix="kodi-addons-") as temp_name, \
+            ThreadPoolExecutor(max_workers=4) as executor:
         temp_dir = Path(temp_name)
+        archives = {}
+
+        def download_source(repository: str, sha: str, directory: Path) -> Path:
+            directory.mkdir()
+            archive_path = directory / "source.zip"
+            extract_dir = directory / "source"
+            download_archive(repository, sha, archive_path)
+            safe_extract(archive_path, extract_dir)
+            return find_addon_root(extract_dir)
+
+        def prefetch(repository: str, sha: str):
+            key = (repository, sha)
+            if key not in archives:
+                directory = temp_dir / str(len(archives))
+                archives[key] = executor.submit(download_source, repository, sha, directory)
+            return archives[key]
+
+        sources = []
         for addon_config in manifest["addons"]:
             repository = addon_config["repository"]
             ref = source_ref_for(addon_config)
             source_sha = resolve_source_sha(repository, ref)
+            sources.append((addon_config, ref, source_sha))
+            prefetch(repository, source_sha)
+
+        # Only archive fetch/extract runs in parallel. Checks, tests, logs and
+        # output retain manifest order. Futures cache candidates and fallbacks.
+        for addon_config, ref, source_sha in sources:
+            repository = addon_config["repository"]
             strict = is_source_publish(addon_config)
             published = published_source_for(repository, published_sources)
 
-            def fetch(sha: str, suffix: str) -> Path:
-                archive_path = temp_dir / f"{repository.replace('/', '__')}{suffix}.zip"
-                extract_dir = temp_dir / f"{repository.replace('/', '__')}{suffix}"
-                extract_dir.mkdir()
-                download_archive(repository, sha, archive_path)
-                safe_extract(archive_path, extract_dir)
-                return find_addon_root(extract_dir)
-
             print(f"Packaging {repository}@{ref} ({source_sha})")
-            addon_root = fetch(source_sha, "")
+            addon_root = prefetch(repository, source_sha).result()
             addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
             label = f"{repository}@{source_sha[:12]}"
             already_published = published is not None and published.get("sha") == source_sha
@@ -653,7 +677,7 @@ def build() -> None:
                 # Same version: not a release (non-shipped files only, or shipped
                 # changes declared No-Release; the pre-push hook and CI enforce
                 # which). Keep the published package without failing the run.
-                published_root = fetch(published["sha"], "__published")
+                published_root = prefetch(repository, published["sha"]).result()
                 unchanged = shipped_files(published_root, exclude_patterns) == shipped_files(
                     addon_root, exclude_patterns)
                 print(
@@ -694,7 +718,7 @@ def build() -> None:
                     )
                     source_sha = kept_sha
                     ref = kept_sha
-                    addon_root = fetch(source_sha, "__published_kept")
+                    addon_root = prefetch(repository, source_sha).result()
                     addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
 
             warn_shared_service_drift(addon_root, addon_id)

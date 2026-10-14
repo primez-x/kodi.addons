@@ -40,7 +40,9 @@ The manifest also pins these support packages:
 
 ## Publish an add-on update
 
-1. Use the add-on's tracked branch from `.primez-publish.json`.
+1. Match the tracked branch in all three places: the add-on's `.primez-publish.json` `branch`,
+   the central `addons.json` `ref`, and the Worker's `DEFAULT_ALLOWED_REPOS` branch.
+   If `ALLOWED_REPOS_JSON` overrides the Worker defaults, update that branch map too.
 2. Enable the local publish hook:
 
    ```bash

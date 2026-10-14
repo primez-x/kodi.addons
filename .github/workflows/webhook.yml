@@ -1,0 +1,41 @@
+name: Test Kodi webhook
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - webhook/**
+      - .github/workflows/webhook.yml
+  pull_request:
+    paths:
+      - webhook/**
+      - .github/workflows/webhook.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: webhook/cloudflare-worker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webhook/cloudflare-worker/package-lock.json
+
+      - name: Install webhook dependencies
+        run: npm ci
+
+      - name: Test webhook
+        run: npm test

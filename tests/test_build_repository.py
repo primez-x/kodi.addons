@@ -3,12 +3,15 @@
 Run with: python3 -m unittest discover -s tests
 """
 
+import hashlib
 import importlib
 import io
 import json
 import os
+import re
 import sys
 import tempfile
+import threading
 import unittest
 import urllib.error
 import xml.etree.ElementTree as ET
@@ -90,6 +93,80 @@ class BuildRepositoryTests(unittest.TestCase):
             real_run_tests(addon_root, config, label)
 
         builder.run_addon_tests = run_tests
+
+    def test_archives_are_downloaded_once_per_repository_and_sha(self):
+        self.add("o/a", "a1", "1.0.0")
+        download = self.builder.download_archive
+        calls = []
+
+        def counted(repository, sha, target):
+            calls.append((repository, sha))
+            download(repository, sha, target)
+
+        self.builder.download_archive = counted
+        self.build(["o/a", "o/a"])
+        self.assertEqual(calls, [("o/a", "a1")])
+
+    def test_archive_prefetch_overlaps_without_changing_package_order(self):
+        repositories = [f"o/a{index}" for index in range(6)]
+        for repository in repositories:
+            self.add(repository, "same-sha", "1.0.0")
+        download = self.builder.download_archive
+        lock = threading.Lock()
+        overlap = threading.Event()
+        active = peak = 0
+
+        def concurrent(repository, sha, target):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+                if active >= 2:
+                    overlap.set()
+            try:
+                if not overlap.wait(2):
+                    raise RuntimeError("Archives were fetched serially")
+                download(repository, sha, target)
+            finally:
+                with lock:
+                    active -= 1
+
+        self.builder.download_archive = concurrent
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+            built = self.build(repositories)
+        self.assertGreaterEqual(peak, 2)
+        self.assertLessEqual(peak, 4)
+        self.assertEqual(list(built), repositories)
+        package_lines = [line.split("@")[0] for line in output.getvalue().splitlines()
+                         if line.startswith("Packaging ")]
+        self.assertEqual(package_lines, [f"Packaging {name}" for name in repositories])
+
+    def test_prefetch_failure_reports_the_source_in_manifest_order(self):
+        self.add("o/a", "a1", "1.0.0")
+        self.add("o/b", "b1", "1.0.0")
+        download = self.builder.download_archive
+
+        def failed(repository, sha, target):
+            if repository == "o/b":
+                raise RuntimeError("o/b archive unavailable")
+            download(repository, sha, target)
+
+        self.builder.download_archive = failed
+        with self.assertRaisesRegex(RuntimeError, "o/b archive unavailable"):
+            self.build(["o/a", "o/b"])
+        self.assertTrue((self.output / "a" / "a-1.0.0.zip").exists())
+
+    def test_shipped_files_use_streamed_digests_and_keep_excludes(self):
+        root = Path(self.temp.name) / "source"
+        root.mkdir()
+        content = b"a" * (2 * 1024 * 1024 + 3)
+        (root / "asset.bin").write_bytes(content)
+        (root / "README.md").write_text("excluded")
+        with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("Whole-file read")):
+            files = self.builder.shipped_files(root, list(self.builder.DEFAULT_EXCLUDES))
+        self.assertEqual(files, {"asset.bin": hashlib.sha256(content).hexdigest()})
+        (root / "asset.bin").write_bytes(content[:-1] + b"b")
+        self.assertNotEqual(files, self.builder.shipped_files(root, list(self.builder.DEFAULT_EXCLUDES)))
 
     def test_shared_service_drift_reports_missing_or_changed_copies(self):
         master = Path(self.temp.name) / "tools" / "service_common"
@@ -352,6 +429,20 @@ class BuildRepositoryTests(unittest.TestCase):
         built = self.build(["o/a"])
 
         self.assertEqual(built["o/a"]["sha"], "a1")
+
+
+class WebhookBranchTests(unittest.TestCase):
+    def test_worker_defaults_match_all_maintained_manifest_branches(self):
+        manifest = json.loads((ROOT / "addons.json").read_text())
+        source = (ROOT / "webhook/cloudflare-worker/src/index.js").read_text()
+        declaration = re.search(r"\bconst\s+DEFAULT_ALLOWED_REPOS\s*=\s*", source)
+        self.assertIsNotNone(declaration, "Worker default repository map is missing")
+        # Keep the Worker map in JSON object syntax; decode the whole map.
+        defaults, _ = json.JSONDecoder().raw_decode(source[declaration.end():])
+        owner = manifest["repository"]["provider_name"]
+        branches = {entry["repository"]: entry["ref"] for entry in manifest["addons"]
+                    if entry["repository"].startswith(owner + "/")}
+        self.assertEqual(defaults, branches)
 
 
 class RunAddonTestsTests(unittest.TestCase):

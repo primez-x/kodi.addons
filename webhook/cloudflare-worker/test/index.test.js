@@ -247,3 +247,41 @@ test("dispatches the verified commit details to the configured target", async ()
     assert.equal(dispatchRequest.url, "https://api.github.com/repos/publisher/catalog/dispatches");
   });
 });
+
+test("validates every required secret before signature verification", async () => {
+  for (const name of ["WEBHOOK_SECRET", "GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"]) {
+    for (const value of [undefined, "", "   ", 123]) {
+      const request = await signedRequest({ body: "not-json", signature: "sha256=00" });
+      const result = await responseBody(await worker.fetch(request, baseEnv({ [name]: value })));
+      assert.equal(result.status, 500);
+      assert.deepEqual(result.body, { error: `missing_${name.toLowerCase()}`, delivery: "delivery-1" });
+    }
+  }
+});
+
+test("returns a structured gateway error when authentication or dispatch fails", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const stage of ["auth", "dispatch", "network", "key"]) {
+      globalThis.fetch = async (input) => {
+        const url = typeof input === "string" ? input : input.url;
+        if (stage === "network") throw new Error("network unavailable");
+        if (url.endsWith("/access_tokens") && stage !== "auth") {
+          return new Response(JSON.stringify({ token: "ghs_test", expires_at: "2099-01-01T00:00:00Z" }), {
+            status: 201, headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ message: "upstream unavailable" }), {
+          status: 503, headers: { "content-type": "application/json" },
+        });
+      };
+      const request = await signedRequest({ payload: pushPayload("primez-x/service.nexttrack", "main") });
+      const env = stage === "key" ? baseEnv({ GITHUB_APP_PRIVATE_KEY: "invalid-key" }) : baseEnv();
+      const result = await responseBody(await worker.fetch(request, env));
+      assert.equal(result.status, 502);
+      assert.deepEqual(result.body, { error: "dispatch_failed", delivery: "delivery-1" });
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -26,6 +26,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -62,4 +63,24 @@ jobs:
 
       - name: Deploy GitHub Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v4
+
+      - name: Verify GitHub Pages
+        id: verification
+        if: steps.deployment.outcome == 'success'
+        continue-on-error: true
+        env:
+          PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+        run: python3 tools/verify_pages.py public/source-manifest.json --base-url "$PAGES_URL"
+
+      - name: Retry GitHub Pages deployment
+        id: redeployment
+        if: steps.deployment.outcome == 'failure' || steps.verification.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+
+      - name: Verify GitHub Pages after retry
+        if: steps.redeployment.outcome == 'success'
+        env:
+          PAGES_URL: ${{ steps.redeployment.outputs.page_url }}
+        run: python3 tools/verify_pages.py public/source-manifest.json --base-url "$PAGES_URL"
