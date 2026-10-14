@@ -430,6 +430,30 @@ class BuildRepositoryTests(unittest.TestCase):
 
         self.assertEqual(built["o/a"]["sha"], "a1")
 
+    def test_changelog_is_generated_from_news(self):
+        source = Path(self.temp.name) / "source"
+        source.mkdir()
+        (source / "changelog.txt").write_text("version 1.0.0:\n- stale\n")
+        news = "v1.2.0\n- New thing\n\nv1.1.0\n- Old thing"
+        root = ET.fromstring(
+            '<addon id="a" version="1.2.0"><extension point="xbmc.addon.metadata">'
+            f"<news>\n        {news}\n        </news></extension></addon>"
+        )
+
+        self.builder.copy_repository_assets(source, "a", "1.2.0", root, self.output)
+
+        self.assertEqual((self.output / "a" / "changelog-1.2.0.txt").read_text(), news + "\n")
+        self.assertFalse((self.output / "a" / "changelog.txt").exists())
+
+    def test_no_changelog_without_news(self):
+        source = Path(self.temp.name) / "source"
+        source.mkdir()
+        root = ET.fromstring('<addon id="a" version="1.2.0"><extension point="xbmc.addon.metadata"/></addon>')
+
+        self.builder.copy_repository_assets(source, "a", "1.2.0", root, self.output)
+
+        self.assertFalse((self.output / "a" / "changelog-1.2.0.txt").exists())
+
 
 class WebhookBranchTests(unittest.TestCase):
     def test_worker_defaults_match_all_maintained_manifest_branches(self):

@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -419,7 +420,7 @@ def copy_repository_asset(source_root: Path, addon_id: str, output_dir: Path, re
 def copy_repository_assets(source_root: Path, addon_id: str, version: str, addon_xml_root: ET.Element, output_dir: Path) -> None:
     paths: set[str] = set()
 
-    for candidate in ("icon.png", "fanart.jpg", "fanart.png", "changelog.txt"):
+    for candidate in ("icon.png", "fanart.jpg", "fanart.png"):
         if (source_root / candidate).is_file():
             paths.add(candidate)
 
@@ -429,18 +430,16 @@ def copy_repository_assets(source_root: Path, addon_id: str, version: str, addon
             if asset.text and asset.text.strip():
                 paths.add(asset.text.strip())
 
-    for changelog in source_root.glob("changelog*.txt"):
-        if changelog.is_file():
-            paths.add(changelog.name)
-
     for path in sorted(paths):
         copy_repository_asset(source_root, addon_id, output_dir, path)
 
-    changelog = source_root / "changelog.txt"
-    if changelog.is_file():
-        versioned = output_dir / addon_id / f"changelog-{version}.txt"
-        versioned.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(changelog, versioned)
+    # The <news> history is the only release-notes source; Kodi reads the
+    # changelog for a version from changelog-<version>.txt next to the zip.
+    news = addon_xml_root.find("extension[@point='xbmc.addon.metadata']/news")
+    if news is not None and news.text and news.text.strip():
+        changelog = output_dir / addon_id / f"changelog-{version}.txt"
+        changelog.parent.mkdir(parents=True, exist_ok=True)
+        changelog.write_text(textwrap.dedent(news.text).strip() + "\n", encoding="utf-8")
 
 
 def serialize_addon(root: ET.Element) -> str:
