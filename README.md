@@ -28,7 +28,7 @@ Keep automatic updates enabled for the installed add-ons.
 | [Up Next](https://github.com/primez-x/service.upnext) | Next-episode prompts | `master` |
 | [Next Track](https://github.com/primez-x/service.nexttrack) | Next-track prompts and queue control | `main` |
 | [Smart Subtitles](https://github.com/primez-x/service.smartsubtitles) | Automatic subtitle selection | `main` |
-| [YouTube](https://github.com/primez-x/plugin.video.youtube) | YouTube playback | `primez` |
+| [SmartTube](https://github.com/primez-x/plugin.video.smarttube) | YouTube playback without API keys, with SponsorBlock | `main` |
 | [Unpause Jumpback](https://github.com/primez-x/script.xbmc.unpausejumpback) | Jumps back after pause or fast-forward | `primez` |
 | [Playback Resumer](https://github.com/primez-x/script.service.playbackresumer) | Resume points and resume after restart | `primez` |
 

@@ -70,7 +70,7 @@ When unsure between two levels, take the higher one.
 ## Forks of upstream add-ons
 
 - **Four-component forks** (`plugin.video.themoviedb.helper`, e.g. `6.17.3.3`; also
-  `plugin.video.youtube`, `script.xbmc.unpausejumpback`, `script.service.playbackresumer`): the
+  `script.xbmc.unpausejumpback`, `script.service.playbackresumer`): the
   first three components are the upstream version the fork is based on; the
   fourth is the fork revision. Every fork release raises only the fourth. Merging
   a newer upstream sets the first three to upstream's and the fourth to `1`.

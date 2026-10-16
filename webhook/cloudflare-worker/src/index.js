@@ -11,7 +11,7 @@ const DEFAULT_ALLOWED_REPOS = {
   "primez-x/service.upnext": "master",
   "primez-x/service.nexttrack": "main",
   "primez-x/service.smartsubtitles": "main",
-  "primez-x/plugin.video.youtube": "primez",
+  "primez-x/plugin.video.smarttube": "main",
   "primez-x/script.xbmc.unpausejumpback": "primez",
   "primez-x/script.service.playbackresumer": "primez"
 };

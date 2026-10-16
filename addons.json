@@ -70,8 +70,8 @@
       "ref": "main"
     },
     {
-      "repository": "primez-x/plugin.video.youtube",
-      "ref": "primez"
+      "repository": "primez-x/plugin.video.smarttube",
+      "ref": "main"
     },
     {
       "repository": "primez-x/script.xbmc.unpausejumpback",
