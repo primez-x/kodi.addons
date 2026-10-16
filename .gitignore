@@ -2,3 +2,4 @@ public/
 /webhook/cloudflare-worker/node_modules/
 /webhook/cloudflare-worker/wrangler.toml
 /webhook/cloudflare-worker/.wrangler/
+/webhook/cloudflare-worker/.dev.vars
