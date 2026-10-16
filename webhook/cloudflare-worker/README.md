@@ -39,9 +39,9 @@ The dispatch carries the repository, branch, SHA, and GitHub delivery ID.
 | `TARGET_OWNER` | Dispatch target owner | `primez-x` |
 | `TARGET_REPO` | Dispatch target repository | `kodi.addons` |
 | `EVENT_TYPE` | Repository dispatch event name | `addon_updated` |
-| `ALLOWED_REPOS_JSON` | Complete repository-to-branch allowlist | Eight pairs in `src/index.js` |
+| `ALLOWED_REPOS_JSON` | Complete repository-to-branch allowlist | Eleven pairs in `src/index.js` |
 
-The source default allowlist matches the eight maintained packages in the [repository guide](../../README.md#maintained-packages).
+The source default allowlist matches the eleven maintained packages in the [repository guide](../../README.md#maintained-packages).
 An unset `ALLOWED_REPOS_JSON` selects the source defaults.
 A custom JSON object replaces the complete default map.
 An empty object accepts no repositories.

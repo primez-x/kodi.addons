@@ -69,7 +69,8 @@ When unsure between two levels, take the higher one.
 
 ## Forks of upstream add-ons
 
-- **Four-component forks** (`plugin.video.themoviedb.helper`, e.g. `6.17.3.3`): the
+- **Four-component forks** (`plugin.video.themoviedb.helper`, e.g. `6.17.3.3`; also
+  `plugin.video.youtube`, `script.xbmc.unpausejumpback`, `script.service.playbackresumer`): the
   first three components are the upstream version the fork is based on; the
   fourth is the fork revision. Every fork release raises only the fourth. Merging
   a newer upstream sets the first three to upstream's and the fourth to `1`.
@@ -77,6 +78,10 @@ When unsure between two levels, take the higher one.
   Up Next): apply the rules above to the fork's own version. When merging upstream,
   raise minor (or major, if upstream's change is breaking), unless upstream's version
   is already higher, in which case adopt upstream's version.
+- **Adopting an official add-on**: publish the upstream version with fork revision `1`
+  (`3.0.8` becomes `3.0.8.1`) and declare `Version-Jump`. Kodi updates an add-on from
+  the official repository only from its install source, so each box reinstalls the
+  add-on once from this repository; later releases then arrive as normal updates.
 
 Adopting an upstream version is the one allowed jump: add a line
 `Version-Jump: <reason>` (e.g. `Version-Jump: adopt upstream 6.18.0`) to the

@@ -68,6 +68,18 @@
     {
       "repository": "primez-x/service.smartsubtitles",
       "ref": "main"
+    },
+    {
+      "repository": "primez-x/plugin.video.youtube",
+      "ref": "primez"
+    },
+    {
+      "repository": "primez-x/script.xbmc.unpausejumpback",
+      "ref": "primez"
+    },
+    {
+      "repository": "primez-x/script.service.playbackresumer",
+      "ref": "primez"
     }
   ]
 }
