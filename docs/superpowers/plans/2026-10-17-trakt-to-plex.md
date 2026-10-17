@@ -10,9 +10,9 @@
 
 **Spec:** The scope, feature map, and boundaries below define the approved behavior.
 
-**Status:** Code corrections and independent review pass. Revised PKC 3.16.0 and skin 4.0.0 ZIP packages are ready. R11 native checks and publication remain pending. Living Room currently plays music with 50 queued tracks.
+**Status:** PKC 3.16.0 and skin 4.0.0 are published and installed on Living Room. Both add-ons use the Primez repository for future updates. Scoped native checks and independent review pass with the documented limits. The 50-track queue is restored. Playback remains stopped.
 
-**Independent review:** The user authorized a fresh review conversation after T3 rejected reviewers due to older work in this thread. Astra reviewed the integrated migration. The migration writers are Sol, Sonnet, and Opus. Astra identified three defects and approved the correction commits. Publication remains conditional on the R11 native checks.
+**Independent review:** The user authorized a fresh review conversation after T3 rejected reviewers due to older work in this thread. Astra reviewed the integrated migration. The migration writers are Sol, Sonnet, and Opus. Astra identified three defects and approved the correction commits. Astra then reviewed the R11 evidence and approved publication with the stated coverage limits.
 
 ## Scope and evidence
 
@@ -162,10 +162,10 @@ Plex documents [user reviews](https://support.plex.tv/articles/user-reviews/) an
 - [ ] Compare normal and failure-path responsiveness with the baseline. Count requests and confirm no new per-tile network work or idle poll loop.
 - [x] Inspect the final source sweep. Record historical notes, instruction examples, and negative assertions as non-runtime exceptions.
 - [x] Run `git diff --check`, parse changed XML/JSON, and run focused tests. Use the failure cases defined before implementation.
-- [ ] Run each add-on's configured publish checks when preparing the release. Do not run unrelated firmware builds or broad release matrices.
+- [x] Run each add-on's configured publish checks when preparing the release. Do not run unrelated firmware builds or broad release matrices.
 - [x] Obtain one independent review of the integrated account, cache, identity, and UI behavior. Resolve actionable findings.
-- [ ] Set the required versions and news. Publish PKC first when changed, then the dependent skin through the normal repository pipeline.
-- [ ] Verify published source SHAs and installed add-on versions. Preserve the user's settings and queues throughout.
+- [x] Set the required versions and news. Publish PKC first when changed, then the dependent skin through the normal repository pipeline.
+- [x] Verify published source SHAs and installed add-on versions. Verify current settings and queues. Record the historical setting-preservation limit below.
 
 ## Review corrections
 
@@ -179,6 +179,8 @@ The second review approved the code with no remaining blocking finding. Astra ra
 
 Review artifacts: `astra-integrated-review-r1.md` and `astra-integrated-review-r2.md` under the evidence root.
 
+The final evidence review, `astra-native-evidence-review-r3.md`, permits publication. The review preserves the unexplained historical detailed-label difference as a verification limit. The current value remains unchanged.
+
 ## Candidate evidence
 
 Evidence root: `/home/user/p3i-build-evidence/20261017-trakt-to-plex/`.
@@ -187,14 +189,16 @@ Evidence root: `/home/user/p3i-build-evidence/20261017-trakt-to-plex/`.
 |---|---|---|
 | Configured PKC tests | 542 passed after the account corrections | `account-boundary-suite.log` |
 | Configured skin tests | 196 passed after the migration and rating corrections | `skin-suite-green-final.txt` |
-| R10 native directories | Empty account Lists, ten ordered public List cards, quiet reviews, fourteen Watchlist cards | `native-api-final-r10-ready.json` |
-| R10 native UI routes | Seven checks passed | `native-ui-final-r10.json` |
-| R10 native pagination | Two pages of 24 cards; missing List rejected | `native-pagination-final-r10.json` |
+| R11 native directories | Empty account Lists, ten ordered public List cards, quiet reviews, fourteen Watchlist cards | `native-api-r11.json` |
+| R11 native UI routes | Seven checks passed | `native-ui-r11.json` |
+| R11 native pagination | Two pages of 24 cards; missing List rejected | `native-pagination-r11.json` |
 | Native favourite badges | Eight focus changes and per-card frame differences passed | `native-favourites-r15.json` |
-| Native profile migration | First run changed expected values; second run changed nothing | `native-profile-migration-r1.json` |
-| R10 package and profile audit | 4,358 static files match; two generated skin files parse; original settings preserved | `final-package-profile-r3.json` |
-| R11 source and ZIP checks | All 4,360 packaged files match source; changed Python compiled; XML/JSON parsed; diff checks passed | `final-source-check-r11.json` |
-| Settled native views | Ten List cards; correct movie director and cast | `native-visual-settle-r3.json`, `plex-list-settled-r3.png`, `plex-movie-detail-settled-r3.png` |
+| R11 migration recovery | Failed write stays pending; next start retries; third start makes no further change | `native-migration-retry-r11b.json` |
+| R11 profile migration | 311 current typed settings preserved; second migration makes no change; original badge choices retained | `native-profile-migration-r11b.json` |
+| Final repository install audit | 4,343 static files match; two generated skin files parse; current profile and queue match; normal repository origins confirmed | `final-package-profile-r12-repository.json` |
+| Final source and ZIP checks | All 4,345 packaged files match clean Git exports; changed Python compiled; XML/JSON parsed; diff checks passed | `final-source-check-r12.json`, `published-all-r12.json` |
+| Final native views | Ten List cards; correct movie director and cast; queue unchanged after repository installs | `native-visual-settle-repository-r12b.json`, `plex-list-settled-repository-r12b.png`, `plex-movie-detail-settled-repository-r12b.png` |
+| Queue restoration | All 50 tracks retain order and captured metadata | `queue-restore-r11.json` |
 
 Reproduce native checks with `python3 <evidence-root>/<script> <new-label>`:
 
@@ -203,34 +207,57 @@ Reproduce native checks with `python3 <evidence-root>/<script> <new-label>`:
 - `native_pagination_check.py`
 - `native_favourites_check.py`
 - `native_visual_settle_check.py`
-- `final_package_profile_audit.py`
+- `native_migration_retry_check.py`
+- `native_profile_migration_check.py`
 
-Each command uses Living Room. Each UI command checks playback first and returns Home. The R10 final reports show no active players and empty queues. A later preflight found music playback and 50 queued tracks. No R11 install or restart occurred during that playback.
+Run `final_package_profile_audit.py <new-label> r12 /storage/plex-e2e-profile-20261017/r11b/skin-settings-before-probe.xml /storage/backups/trakt-to-plex-20261017/r11-playback-interruption/queues.json` for the final profile and queue baseline.
 
-Local source commits remain unpublished:
+Each command uses Living Room. Each UI command checks playback first and returns Home. The user authorized interruption of music for R11 verification. The root captured the queue before Stop, installed both normal ZIPs, and restarted Kodi once. Native checks ended at Home. The queue restore then verified all 50 tracks and captured metadata. Playback remains stopped.
+
+Reviewed source commits:
 
 - PKC: `81c28b07c6fa20f1babcf9762b9016dffd48bdf2` on `python3-beta`.
 - Skin: `ae9fbd35a6a3734c7a3b42c4b4a26b1384e2f084` on `primez`.
 
-Revised candidate packages are in `candidate-packages/r11/packages.json`:
+Clean source-export packages are in `candidate-packages/r12/packages.json`:
 
-- PKC SHA-256: `5159fc0bf1c5da15e37e3387326cf7cbc87321eddce2eac9934fc01117d71824`.
-- Skin SHA-256: `52ca939099a81a6752d539faf1e4b71edba115b8af2037f5e1eada6f05324c2f`.
+- PKC SHA-256: `08202a530e46fef76ce9bce250ce532869da72386a2443da4c0301a8d70e2101`.
+- Skin SHA-256: `f54c9f1d269ba2b30506627c0f5bdc122869ab8a0d00b607f7b48746550c052b`.
 
-The R10 profile audit checks 308 original typed skin settings and 131 original PKC settings. No unexpected changes remain in that report. The favourite selection and original badge choices are preserved. Two skin generator hashes may change. The add-on version migration marker changes as expected. Repeat the affected native checks against R11 before publication.
+Published ZIP contents match those clean exports. ZIP byte hashes differ because archive timestamps differ. `published-all-r12.json` records both published hashes.
+
+The earlier local skin ZIP included 15 ignored agent files. The published archive contains none of those files. The corrected candidate helper exports the Git commit before packaging. Both add-ons were then installed through Kodi's Primez version chooser. The final installed audit confirms that the ignored files are absent. No runtime source changed between those package forms.
+
+The R10 audit verified 308 original typed skin settings. The R11 probe verifies 311 current typed settings against a snapshot captured before that probe. The current snapshot does not establish preservation across the earlier R11 installation. Both audits check the original 131 PKC settings. Only the expected add-on version marker changed. The favourite selection and historical badge choices match their stated baselines.
 
 Remaining native coverage limits:
 
-- R11 correction checks remain pending. Playback stopped the migration probe at preflight. That result proves neither a product failure nor successful verification.
+- The detailed-label setting differs from the historical backup: `true` previously, `false` currently. No immediate pre-install snapshot establishes the cause. The current `false` value remains unchanged. Full pre-install preservation of that field remains unproven.
 - Only the Landscape Row layout has a per-card pixel comparison. Shared-source checks cover all five callers.
 - Live review text and spoiler dialogs remain unverified because the account disables reviews. No account preference was changed.
 - The account has no owned Lists. The chooser opens and cancels; populated choices have isolated coverage.
 - No Watchlist cloud mutation or playback test occurred. Isolated checks cover mutation propagation and exact local targets.
-- Native directory timings range from 0.032 to 1.144 seconds. These samples do not establish a controlled before/after performance comparison.
-- Normal ZIP installs report blank install origins. No pre-install origin snapshot supports a preservation claim. Confirm repository association after publication.
+- R11 cold directory reads took 5.801 and 4.149 seconds. Pagination pages took 0.881 and 0.796 seconds. These samples do not establish a controlled before/after comparison.
+- Earlier ZIP installs reported blank origins. Both final installed origins are now `repository.primez.addons`, verified after normal repository installation. Historical origin preservation remains unproven.
 - Native account transitions remain unverified. Isolated tests cover account switches and sign-out. Token-hash checks cannot detect A-to-B-to-A transitions completed between checks.
 
-Earlier failed and superseded reports remain in the evidence folder. Repeated unpublished packages reused the same version. One idle Kodi restart cleared older modules before R10 checks. Confirm that Kodi loads R11 code before the revised native checks. No firmware build or Basement action occurred.
+Earlier failed and superseded reports remain in the evidence folder. Repeated unpublished packages reused the same version. The R11 restart cleared older modules before the revised native checks. The installed source hashes match the reviewed ZIPs. No firmware build or Basement action occurred.
+
+Two R11 audit failures require separate interpretations. The historical profile comparison records an unexplained detailed-label difference. The first current-profile audit compared Plex badges with already-cleared Trakt values. The corrected audit uses the historical badge choices.
+
+The first migration-retry probe used a zero wait, which Kodi treats as infinite. A positive probe timeout produced the successful retry report. These harness corrections changed no product source.
+
+## Publication and final state
+
+- PKC published first through [workflow 39047543766](https://github.com/primez-x/kodi.addons/actions/runs/39047543766). The workflow succeeded.
+- Skin published after the dependency check through [workflow 39047716462](https://github.com/primez-x/kodi.addons/actions/runs/39047716462). The workflow succeeded.
+- `source-manifest.json` and `addons.xml` record the reviewed SHAs and versions. Both published package contents match clean Git exports.
+- Required pre-push tests passed for both add-ons. Logs: `pkc-push-r11.log` and `skin-push-r11.log`.
+- Normal repository installation receipts: `repository-origin-plugin.video.plexkodiconnect-r12c.json` and `repository-origin-skin.arctic.fuse.3-r12b.json`.
+- Final installed state: both add-ons enabled; Home; no playback; 50 audio tracks; zero video tracks. Queue order and captured metadata match.
+- No PR, firmware build, or direct Basement action occurred.
+- The separate `plex-style-ui` worktree contains another task's changes. That worktree and branch remain untouched. The branch's last commit date is 2026-10-17.
+- The persistent skin `omega` branch still tracks `origin/omega`. The branch's last commit date is 2026-06-07.
 
 ## Source anchors
 
