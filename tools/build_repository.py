@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -143,29 +144,41 @@ def download_archive(repository: str, ref: str, target: Path) -> None:
     target.write_bytes(github_request(url))
 
 
-def fetch_published_addon_versions(config: dict) -> dict[str, str]:
-    url = with_trailing_slash(config["base_url"]) + "addons.xml"
+def fetch_published_file(config: dict, name: str, description: str) -> bytes | None:
+    """Return the deployed file, or None before the first deploy.
+
+    A unique query string bypasses the Pages CDN cache, which otherwise serves the
+    previous deploy for up to ten minutes and would make the version guard compare
+    against an old release.
+    """
+    url = with_trailing_slash(config["base_url"]) + name
     request = urllib.request.Request(
-        url,
+        url + "?" + urllib.parse.urlencode({"build": time.time_ns()}),
         headers={
+            "Cache-Control": "no-cache",
             "User-Agent": "primez-kodi-repository-builder",
         },
     )
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
-            body = response.read()
+            return response.read()
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            return {}
+            return None
         details = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Failed to fetch published add-on versions: HTTP {exc.code}: {details}") from exc
+        raise RuntimeError(f"Failed to fetch published {description}: HTTP {exc.code}: {details}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"Failed to fetch published add-on versions: {exc.reason}") from exc
+        raise RuntimeError(f"Failed to fetch published {description}: {exc.reason}") from exc
 
+
+def fetch_published_addon_versions(config: dict) -> dict[str, str]:
+    body = fetch_published_file(config, "addons.xml", "add-on versions")
+    if body is None:
+        return {}
     try:
         root = ET.fromstring(body)
     except ET.ParseError as exc:
-        raise RuntimeError(f"Published addons.xml at {url} is not valid XML: {exc}") from exc
+        raise RuntimeError(f"Published addons.xml is not valid XML: {exc}") from exc
 
     versions: dict[str, str] = {}
     for addon in root.findall("addon"):
@@ -177,28 +190,13 @@ def fetch_published_addon_versions(config: dict) -> dict[str, str]:
 
 
 def fetch_published_source_manifest(config: dict) -> dict[str, dict]:
-    url = with_trailing_slash(config["base_url"]) + "source-manifest.json"
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "primez-kodi-repository-builder",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            body = response.read()
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return {}
-        details = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Failed to fetch published source manifest: HTTP {exc.code}: {details}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Failed to fetch published source manifest: {exc.reason}") from exc
-
+    body = fetch_published_file(config, "source-manifest.json", "source manifest")
+    if body is None:
+        return {}
     try:
         manifest = json.loads(body.decode("utf-8"))
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Published source-manifest.json at {url} is not valid JSON: {exc}") from exc
+        raise RuntimeError(f"Published source-manifest.json is not valid JSON: {exc}") from exc
 
     sources: dict[str, dict] = {}
     for entry in manifest.get("addons", []):
