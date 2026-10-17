@@ -10,9 +10,9 @@
 
 **Spec:** The scope, feature map, and boundaries below define the approved behavior.
 
-**Status:** Implementation and final candidate checks pass on Living Room. PKC 3.16.0 and skin 4.0.0 are installed from normal ZIP packages. Required independent review and publication remain pending.
+**Status:** Code corrections and independent review pass. Revised PKC 3.16.0 and skin 4.0.0 ZIP packages are ready. R11 native checks and publication remain pending. Living Room currently plays music with 50 queued tracks.
 
-**Independent review:** T3 rejected Opus, Astra, Fable, and automatic selection because those models wrote older work in this thread. The current migration writers are Sol, Sonnet, and Opus. The root requested permission for a fresh review conversation. Astra is the applicable independent fallback. No independent reviewer has examined the integrated change. Task 6 remains required.
+**Independent review:** The user authorized a fresh review conversation after T3 rejected reviewers due to older work in this thread. Astra reviewed the integrated migration. The migration writers are Sol, Sonnet, and Opus. Astra identified three defects and approved the correction commits. Publication remains conditional on the R11 native checks.
 
 ## Scope and evidence
 
@@ -163,25 +163,37 @@ Plex documents [user reviews](https://support.plex.tv/articles/user-reviews/) an
 - [x] Inspect the final source sweep. Record historical notes, instruction examples, and negative assertions as non-runtime exceptions.
 - [x] Run `git diff --check`, parse changed XML/JSON, and run focused tests. Use the failure cases defined before implementation.
 - [ ] Run each add-on's configured publish checks when preparing the release. Do not run unrelated firmware builds or broad release matrices.
-- [ ] Obtain one independent review of the integrated account, cache, identity, and UI behavior. Resolve actionable findings.
+- [x] Obtain one independent review of the integrated account, cache, identity, and UI behavior. Resolve actionable findings.
 - [ ] Set the required versions and news. Publish PKC first when changed, then the dependent skin through the normal repository pipeline.
 - [ ] Verify published source SHAs and installed add-on versions. Preserve the user's settings and queues throughout.
 
-## Final candidate evidence
+## Review corrections
+
+Astra identified three defects. The correction commits address each shared failure path:
+
+- Community operations retain the original account across requests, conversion, dialogs, selection saves, and state publication. Six operation siblings use the same account boundary.
+- Both migration families report completion separately from changes. Failed reads or writes preserve the old completion marker. The next normal startup retries incomplete work.
+- Plex rating suppression requires a competing provider value that the existing control can display. Five providers and all six rating slots share the corrected condition.
+
+The second review approved the code with no remaining blocking finding. Astra ran 112 focused PKC tests and 43 focused skin tests. Both groups passed. The review retains the native coverage limits below.
+
+Review artifacts: `astra-integrated-review-r1.md` and `astra-integrated-review-r2.md` under the evidence root.
+
+## Candidate evidence
 
 Evidence root: `/home/user/p3i-build-evidence/20261017-trakt-to-plex/`.
 
 | Check | Result | Artifact |
 |---|---|---|
-| Configured PKC tests | 532 passed | `pkc-publish-tests-r6.txt` |
-| Configured skin tests | 186 passed | `skin-publish-tests-r7.txt` |
-| Native directories | Empty account Lists, ten ordered public List cards, quiet reviews, fourteen Watchlist cards | `native-api-final-r10-ready.json` |
-| Native UI routes | Seven checks passed | `native-ui-final-r10.json` |
-| Native pagination | Two pages of 24 cards; missing List rejected | `native-pagination-final-r10.json` |
+| Configured PKC tests | 542 passed after the account corrections | `account-boundary-suite.log` |
+| Configured skin tests | 196 passed after the migration and rating corrections | `skin-suite-green-final.txt` |
+| R10 native directories | Empty account Lists, ten ordered public List cards, quiet reviews, fourteen Watchlist cards | `native-api-final-r10-ready.json` |
+| R10 native UI routes | Seven checks passed | `native-ui-final-r10.json` |
+| R10 native pagination | Two pages of 24 cards; missing List rejected | `native-pagination-final-r10.json` |
 | Native favourite badges | Eight focus changes and per-card frame differences passed | `native-favourites-r15.json` |
 | Native profile migration | First run changed expected values; second run changed nothing | `native-profile-migration-r1.json` |
-| Final package and profile audit | 4,358 static files match; two generated skin files parse; original settings preserved | `final-package-profile-r3.json` |
-| Final source checks | Changed Python compiled; changed XML/JSON parsed; diff checks passed | `final-source-check-r3.json` |
+| R10 package and profile audit | 4,358 static files match; two generated skin files parse; original settings preserved | `final-package-profile-r3.json` |
+| R11 source and ZIP checks | All 4,360 packaged files match source; changed Python compiled; XML/JSON parsed; diff checks passed | `final-source-check-r11.json` |
 | Settled native views | Ten List cards; correct movie director and cast | `native-visual-settle-r3.json`, `plex-list-settled-r3.png`, `plex-movie-detail-settled-r3.png` |
 
 Reproduce native checks with `python3 <evidence-root>/<script> <new-label>`:
@@ -193,30 +205,32 @@ Reproduce native checks with `python3 <evidence-root>/<script> <new-label>`:
 - `native_visual_settle_check.py`
 - `final_package_profile_audit.py`
 
-Each command uses Living Room. Each UI command checks playback first and returns Home. The final reports show no active players and empty queues.
+Each command uses Living Room. Each UI command checks playback first and returns Home. The R10 final reports show no active players and empty queues. A later preflight found music playback and 50 queued tracks. No R11 install or restart occurred during that playback.
 
 Local source commits remain unpublished:
 
-- PKC: `a7bbc7847f26101a04d552908a2cf02cc66ec58e` on `python3-beta`.
-- Skin: `4b5687547f0e7ea9ae95d9b2c94c7e00b6be0db8` on `primez`.
+- PKC: `81c28b07c6fa20f1babcf9762b9016dffd48bdf2` on `python3-beta`.
+- Skin: `ae9fbd35a6a3734c7a3b42c4b4a26b1384e2f084` on `primez`.
 
-Final candidate packages are in `candidate-packages/r10/packages.json`:
+Revised candidate packages are in `candidate-packages/r11/packages.json`:
 
-- PKC SHA-256: `9ef4718c75041296d5556ed5bdead9d25126ac74ef8729863a896ec9a580a071`.
-- Skin SHA-256: `949bafdfa5427a75b0ab2e41fa3331d8525e886f86a98951e11959c0ffcb442c`.
+- PKC SHA-256: `5159fc0bf1c5da15e37e3387326cf7cbc87321eddce2eac9934fc01117d71824`.
+- Skin SHA-256: `52ca939099a81a6752d539faf1e4b71edba115b8af2037f5e1eada6f05324c2f`.
 
-The profile audit checks 308 original typed skin settings and 131 original PKC settings. No unexpected changes remain. The favourite selection and original badge choices are preserved. Two skin generator hashes may change. The add-on version migration marker changes as expected.
+The R10 profile audit checks 308 original typed skin settings and 131 original PKC settings. No unexpected changes remain in that report. The favourite selection and original badge choices are preserved. Two skin generator hashes may change. The add-on version migration marker changes as expected. Repeat the affected native checks against R11 before publication.
 
 Remaining native coverage limits:
 
+- R11 correction checks remain pending. Playback stopped the migration probe at preflight. That result proves neither a product failure nor successful verification.
 - Only the Landscape Row layout has a per-card pixel comparison. Shared-source checks cover all five callers.
 - Live review text and spoiler dialogs remain unverified because the account disables reviews. No account preference was changed.
 - The account has no owned Lists. The chooser opens and cancels; populated choices have isolated coverage.
 - No Watchlist cloud mutation or playback test occurred. Isolated checks cover mutation propagation and exact local targets.
 - Native directory timings range from 0.032 to 1.144 seconds. These samples do not establish a controlled before/after performance comparison.
 - Normal ZIP installs report blank install origins. No pre-install origin snapshot supports a preservation claim. Confirm repository association after publication.
+- Native account transitions remain unverified. Isolated tests cover account switches and sign-out. Token-hash checks cannot detect A-to-B-to-A transitions completed between checks.
 
-Earlier failed and superseded reports remain in the evidence folder. Repeated unpublished packages reused the same version. One idle Kodi restart cleared older candidate modules before final checks. No firmware build or Basement action occurred.
+Earlier failed and superseded reports remain in the evidence folder. Repeated unpublished packages reused the same version. One idle Kodi restart cleared older modules before R10 checks. Confirm that Kodi loads R11 code before the revised native checks. No firmware build or Basement action occurred.
 
 ## Source anchors
 
