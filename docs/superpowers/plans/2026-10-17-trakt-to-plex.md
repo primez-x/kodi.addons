@@ -8,11 +8,11 @@
 
 **Tech Stack:** Kodi skin XML, Skin Variables JSON/XML generators, Python, existing PKC request and cache modules.
 
-**Spec:** The scope, feature map, and boundaries below define the proposed behavior.
+**Spec:** The scope, feature map, and boundaries below define the approved behavior.
 
-**Status:** Source audit and root review complete. Plex reviews and custom Lists remain proposed additions. The user scope question remains open. No product code changed.
+**Status:** Implementation and final candidate checks pass on Living Room. PKC 3.16.0 and skin 4.0.0 are installed from normal ZIP packages. Required independent review and publication remain pending.
 
-**Independent review:** The review service rejected Opus, Astra, and automatic reviewer selection. No independent reviewer examined this draft. The implementation still requires the review in Task 6.
+**Independent review:** T3 rejected Opus, Astra, Fable, and automatic selection because those models wrote older work in this thread. The current migration writers are Sol, Sonnet, and Opus. The root requested permission for a fresh review conversation. Astra is the applicable independent fallback. No independent reviewer has examined the integrated change. Task 6 remains required.
 
 ## Scope and evidence
 
@@ -38,12 +38,6 @@ Plex documents [user reviews](https://support.plex.tv/articles/user-reviews/) an
 | Trakt Lists search shortcut | Replace the shortcut with My Plex Lists. Browse accessible Plex Lists and their contents. | Requires the custom Lists reader. Public list search remains outside the verified feature contract. |
 | Trakt watched-seed widget rules | Retire both Trakt-specific path rules. Use existing Plex Discover widget sources for replacement widgets. | Use the actual Plex hub title. Do not label a general hub as a watched-seed recommendation. |
 
-### Smaller scope alternative
-
-If the user selects existing PKC capabilities only, omit both new readers. Remove the Trakt favourite badge and Trakt comments provider. Remove the Trakt Lists search shortcut. Keep existing Plex Watchlist and Discover shortcuts. Preserve awards, consensus cards, and the library calendar.
-
-This alternative removes features. The expanded scope preserves more functionality and remains the recommendation.
-
 ## Global constraints
 
 - Keep Plex access in PKC. Add no second token store or skin HTTP client.
@@ -59,7 +53,7 @@ This alternative removes features. The expanded scope preserves more functionali
 - Use the existing firmware. This plan needs no Kodi core change or firmware build.
 - Use Living Room for native UI checks. Check current playback and preserve queues before UI actions.
 - Apply `VERSIONING.md` separately to each changed add-on. Shipped feature additions require a minor version step and matching news.
-- At the audited tips, the next feature versions are PKC `3.16.0` and skin `3.30.0`. Recalculate before implementation if either branch advances.
+- Release versions are PKC `3.16.0` and skin `4.0.0`. The skin major follows removal of Trakt-only settings and routes under `VERSIONING.md`.
 - Declare the required PKC version in the skin manifest when the skin depends on new PKC behavior. For the audited expanded scope, require PKC `3.16.0`.
 - Push a changed PKC dependency first. Verify the remote SHA and published dependency before the dependent skin release.
 
@@ -79,12 +73,16 @@ This alternative removes features. The expanded scope preserves more functionali
 
 **Interfaces:** Produce verified read-only request contracts for reviews, accessible Lists, and List contents. Record identity fields, pagination, permissions, ordering, and response shapes.
 
-- [ ] Observe the requests used by the official Plex client. Reuse the existing account credentials privately. Use read-only queries during this task.
+- [x] Observe the requests used by the official Plex client. Reuse the existing account credentials privately. Use read-only queries during this task.
 - [ ] Verify reviews for a library title and a cloud-only title. Check spoiler flags and account review preferences.
-- [ ] Verify accessible Lists and List contents. Establish whether list-name filters are local or service-supported.
-- [ ] Verify empty, inaccessible, and paginated responses. Preserve list order and distinguish the final page from a failed page.
-- [ ] Save sanitized response shapes and bounded request counts. Exclude tokens, account identifiers, private list contents, and review authors from committed fixtures.
+- [x] Verify accessible Lists and List contents. Establish whether list-name filters are local or service-supported.
+- [x] Verify empty, inaccessible, and paginated responses. Preserve list order and distinguish the final page from a failed page.
+- [x] Save sanitized response shapes and bounded request counts. Exclude tokens, account identifiers, private list contents, and review authors from committed fixtures.
 - [ ] Record unsupported title types and missing permissions as explicit capability results.
+
+**Native findings:** Generic Kodi library lists expose only the default unique ID. PKC now projects exact library IDs through digit-length buckets. The projection uses no metadata database writes. A larger public List exposed a nullable stream conversion failure. The correction preserves every List entry, including unavailable entries.
+
+**Contract evidence:** `/home/user/p3i-build-evidence/20261017-trakt-to-plex/api-contracts.md` records verified live reads and source-backed preference enums.
 
 **Pass condition:** The implementation has verified request and response contracts. Product documentation alone cannot satisfy this task. If a required contract fails, revise the affected feature map before implementation.
 
@@ -96,11 +94,13 @@ This alternative removes features. The expanded scope preserves more functionali
 
 **Interfaces:** Consume `PlexWatchlistHint`, the existing `PKC.Watchlist.Item.*` state, and exact item identity. Produce one shared Plex Watchlist overlay.
 
-- [ ] Define the failures before code: unknown state displayed as absence, stale focused state copied to other cards, account leakage, and HTTP requests per tile.
-- [ ] Capture native baseline behavior for a Watchlist member, a non-member, and a generic library card without a provider hint.
-- [ ] Extend the existing state projection for uncovered card sources. Reuse the current membership cache and batch identity resolution.
-- [ ] Replace the shared Trakt overlay and all five callers. Keep the settings labels consistent with Plex Watchlist.
-- [ ] Verify add/remove propagation, rapid focus changes, offline cache behavior, account changes, editions, and season/episode exclusion.
+- [x] Define the failures before code: unknown state displayed as absence, stale focused state copied to other cards, account leakage, and HTTP requests per tile.
+- [x] Capture native baseline behavior for a Watchlist member, a non-member, and a generic library card without a provider hint.
+- [x] Extend the existing state projection for uncovered card sources. Reuse the current membership cache and batch identity resolution.
+- [x] Replace the shared Trakt overlay and all five callers. Keep the settings labels consistent with Plex Watchlist.
+- [x] Verify add/remove propagation, rapid focus changes, offline cache behavior, account changes, editions, and season/episode exclusion.
+
+**Verification:** Isolated checks cover mutations, account changes, incomplete snapshots, library invalidation, editions, and publication races. Native frame comparisons verify one member and adjacent non-members during eight focus changes. All five layout callers use the same per-card group. Four other layout geometries remain unverified on the device.
 
 **Pass condition:** Every supported card displays the correct account's membership. Unknown cards remain quiet. Rendering a populated row creates no per-tile network fan-out.
 
@@ -110,11 +110,11 @@ This alternative removes features. The expanded scope preserves more functionali
 
 **Interfaces:** Consume PKC rating values with their source and scale. Preserve personal ratings as a separate field.
 
-- [ ] Define expected behavior for each of three rating slots in Movies and TV Shows, including stored Trakt values and blank values.
-- [ ] Add the Plex source choice and migrate Trakt values through the existing startup rules.
-- [ ] Update startup defaults and reset actions for all slots. Preserve unrelated user choices.
-- [ ] Display the actual source and scale. Avoid a duplicate rating when another slot selects the same provider value.
-- [ ] Verify a library title, a Discover title, missing ratings, and the existing version-count option.
+- [x] Define expected behavior for each of three rating slots in Movies and TV Shows, including stored Trakt values and blank values.
+- [x] Add the Plex source choice and migrate Trakt values through the existing startup rules.
+- [x] Update startup defaults and reset actions for all slots. Preserve unrelated user choices.
+- [x] Display the actual source and scale. Avoid a duplicate rating when another slot selects the same provider value.
+- [x] Verify a library title, a Discover title, missing ratings, and the existing version-count option.
 
 **Pass condition:** Fresh and existing profiles use no Trakt rating source. Rating values, provenance, and personal ratings remain distinct.
 
@@ -128,15 +128,17 @@ This alternative removes features. The expanded scope preserves more functionali
 
 **Interfaces:** Add dedicated read-only directory modes `discover_reviews`, `discover_lists`, and `discover_list`. Cloud metadata keys and cloud List identifiers remain distinct from local PMS keys and playlists.
 
-- [ ] Define failures from the verified contracts before code: wrong title, missing permissions, pagination loss, spoiler exposure, and cross-account cached data.
-- [ ] Extend the existing provider request and cache modules. Keep directory handlers thin and reuse exact local-library matching.
-- [ ] Declare the new PKC release as the minimum skin dependency before enabling the new directory modes.
-- [ ] Return review cards with author display, rating, text, and spoiler state. Reuse `List_Reviews_Row` and the existing text dialog.
-- [ ] Apply Plex review visibility preferences. Require an explicit action before revealing review text marked as a spoiler.
-- [ ] Return accessible Lists and List contents in provider order. Preserve local playback targets for matched titles.
-- [ ] Replace the obsolete list-search shortcut with My Plex Lists. Keep labels accurate where public list search is unavailable.
-- [ ] Add a favourite-list selection from accessible Lists. Use membership for favourite badges without changing Watchlist membership.
-- [ ] Verify empty rows, delayed responses, changed titles, denied Lists, multiple pages, and account changes.
+- [x] Define failures from the verified contracts before code: wrong title, missing permissions, pagination loss, spoiler exposure, and cross-account cached data.
+- [x] Extend the existing provider request and cache modules. Keep directory handlers thin and reuse exact local-library matching.
+- [x] Declare the new PKC release as the minimum skin dependency before enabling the new directory modes.
+- [x] Return review cards with author display, rating, text, and spoiler state. Reuse `List_Reviews_Row` and the existing text dialog.
+- [x] Apply Plex review visibility preferences. Require an explicit action before revealing review text marked as a spoiler.
+- [x] Return accessible Lists and List contents in provider order. Preserve local playback targets for matched titles.
+- [x] Replace the obsolete list-search shortcut with My Plex Lists. Keep labels accurate where public list search is unavailable.
+- [x] Add a favourite-list selection from accessible Lists. Use membership for favourite badges without changing Watchlist membership.
+- [x] Verify empty rows, delayed responses, changed titles, denied Lists, multiple pages, and account changes.
+
+**Verification:** Live SDK checks return two distinct review pages of 24 records. The account preference is None, so native review directories correctly remain empty. Isolated checks cover review identity and spoiler confirmation. The account has no custom Lists. A public List verifies native order, local targets, membership, and pagination. No cloud mutation occurred.
 
 **Pass condition:** Reviews and Lists use verified Plex responses. Cache reuse does not mix accounts or titles. Existing detail actions and local playback targets remain correct.
 
@@ -144,26 +146,77 @@ This alternative removes features. The expanded scope preserves more functionali
 
 **Paths:** `1080i/Includes_Hubs.xml`, `1080i/Includes_NextAired.xml`, `1080i/Includes_Home.xml`, `1080i/Dialog_DialogView.xml`, `shortcuts/skinviewtypes.json`, `shortcuts/generator/data/setup/widgets_row.xml`, and the existing startup/shortcut generation paths.
 
-- [ ] Define baseline profiles with `trakt_calendar`, a saved Trakt Lists shortcut, each watched-seed widget path, and unrelated custom widgets.
-- [ ] Migrate the Trakt calendar selection to `library_nextaired`. Remove the Trakt-only toggle, icon, and calendar view branches.
-- [ ] Remove both watched-seed detection rules. Replace recognized saved widgets with an available Plex Discover source and that source's real title.
-- [ ] Migrate saved Trakt list shortcuts according to the chosen scope. Preserve unrelated shortcuts and custom labels where the meaning remains correct.
-- [ ] Rebuild shortcuts through the existing generator. Check that a second startup makes no further migration changes.
-- [ ] Remove unused Trakt feature assets and the unused icon-selector search term. Preserve historical notes and the removed-button regression assertion.
+- [x] Define baseline profiles with `trakt_calendar`, a saved Trakt Lists shortcut, each watched-seed widget path, and unrelated custom widgets.
+- [x] Migrate the Trakt calendar selection to `library_nextaired`. Remove the Trakt-only toggle, icon, and calendar view branches.
+- [x] Remove both watched-seed detection rules. Replace recognized saved widgets with an available Plex Discover source and that source's real title.
+- [x] Migrate saved Trakt list shortcuts according to the chosen scope. Preserve unrelated shortcuts and custom labels where the meaning remains correct.
+- [x] Rebuild shortcuts through the existing generator. Check that a second startup makes no further migration changes.
+- [x] Remove unused Trakt feature assets and the unused icon-selector search term. Preserve historical notes and the removed-button regression assertion.
 
 **Pass condition:** Existing profiles contain no active Trakt source from the migrated feature groups. The library calendar and unrelated customization remain functional.
 
 ## Task 6: Verify and publish the integrated change
 
 - [ ] Run native E2E checks on Living Room for movie and TV details, all five badge layouts, rating slots, Lists/reviews where selected, Next Aired, search shortcuts, and migrated widgets.
-- [ ] Save repeatable commands, a JSON report, and representative framebuffer screenshots under the evidence folder.
+- [x] Save repeatable commands, a JSON report, and representative framebuffer screenshots under the evidence folder.
 - [ ] Compare normal and failure-path responsiveness with the baseline. Count requests and confirm no new per-tile network work or idle poll loop.
-- [ ] Inspect the final source sweep. Record historical notes, instruction examples, and negative assertions as non-runtime exceptions.
-- [ ] Run `git diff --check`, parse changed XML/JSON, and run focused tests. Use the failure cases defined before implementation.
+- [x] Inspect the final source sweep. Record historical notes, instruction examples, and negative assertions as non-runtime exceptions.
+- [x] Run `git diff --check`, parse changed XML/JSON, and run focused tests. Use the failure cases defined before implementation.
 - [ ] Run each add-on's configured publish checks when preparing the release. Do not run unrelated firmware builds or broad release matrices.
 - [ ] Obtain one independent review of the integrated account, cache, identity, and UI behavior. Resolve actionable findings.
 - [ ] Set the required versions and news. Publish PKC first when changed, then the dependent skin through the normal repository pipeline.
 - [ ] Verify published source SHAs and installed add-on versions. Preserve the user's settings and queues throughout.
+
+## Final candidate evidence
+
+Evidence root: `/home/user/p3i-build-evidence/20261017-trakt-to-plex/`.
+
+| Check | Result | Artifact |
+|---|---|---|
+| Configured PKC tests | 532 passed | `pkc-publish-tests-r6.txt` |
+| Configured skin tests | 186 passed | `skin-publish-tests-r7.txt` |
+| Native directories | Empty account Lists, ten ordered public List cards, quiet reviews, fourteen Watchlist cards | `native-api-final-r10-ready.json` |
+| Native UI routes | Seven checks passed | `native-ui-final-r10.json` |
+| Native pagination | Two pages of 24 cards; missing List rejected | `native-pagination-final-r10.json` |
+| Native favourite badges | Eight focus changes and per-card frame differences passed | `native-favourites-r15.json` |
+| Native profile migration | First run changed expected values; second run changed nothing | `native-profile-migration-r1.json` |
+| Final package and profile audit | 4,358 static files match; two generated skin files parse; original settings preserved | `final-package-profile-r3.json` |
+| Final source checks | Changed Python compiled; changed XML/JSON parsed; diff checks passed | `final-source-check-r3.json` |
+| Settled native views | Ten List cards; correct movie director and cast | `native-visual-settle-r3.json`, `plex-list-settled-r3.png`, `plex-movie-detail-settled-r3.png` |
+
+Reproduce native checks with `python3 <evidence-root>/<script> <new-label>`:
+
+- `native_api_check.py`
+- `native_ui_check.py`
+- `native_pagination_check.py`
+- `native_favourites_check.py`
+- `native_visual_settle_check.py`
+- `final_package_profile_audit.py`
+
+Each command uses Living Room. Each UI command checks playback first and returns Home. The final reports show no active players and empty queues.
+
+Local source commits remain unpublished:
+
+- PKC: `a7bbc7847f26101a04d552908a2cf02cc66ec58e` on `python3-beta`.
+- Skin: `4b5687547f0e7ea9ae95d9b2c94c7e00b6be0db8` on `primez`.
+
+Final candidate packages are in `candidate-packages/r10/packages.json`:
+
+- PKC SHA-256: `9ef4718c75041296d5556ed5bdead9d25126ac74ef8729863a896ec9a580a071`.
+- Skin SHA-256: `949bafdfa5427a75b0ab2e41fa3331d8525e886f86a98951e11959c0ffcb442c`.
+
+The profile audit checks 308 original typed skin settings and 131 original PKC settings. No unexpected changes remain. The favourite selection and original badge choices are preserved. Two skin generator hashes may change. The add-on version migration marker changes as expected.
+
+Remaining native coverage limits:
+
+- Only the Landscape Row layout has a per-card pixel comparison. Shared-source checks cover all five callers.
+- Live review text and spoiler dialogs remain unverified because the account disables reviews. No account preference was changed.
+- The account has no owned Lists. The chooser opens and cancels; populated choices have isolated coverage.
+- No Watchlist cloud mutation or playback test occurred. Isolated checks cover mutation propagation and exact local targets.
+- Native directory timings range from 0.032 to 1.144 seconds. These samples do not establish a controlled before/after performance comparison.
+- Normal ZIP installs report blank install origins. No pre-install origin snapshot supports a preservation claim. Confirm repository association after publication.
+
+Earlier failed and superseded reports remain in the evidence folder. Repeated unpublished packages reused the same version. One idle Kodi restart cleared older candidate modules before final checks. No firmware build or Basement action occurred.
 
 ## Source anchors
 
