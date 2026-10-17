@@ -23,6 +23,7 @@ Keep automatic updates enabled for the installed add-ons.
 | [PlexKodiConnect](https://github.com/primez-x/plugin.video.plexkodiconnect) | Plex media in Kodi's native library | `python3-beta` |
 | [SpotifyKodiConnect](https://github.com/primez-x/plugin.audio.spotifykodiconnect) | Spotify playback and library access | `master` |
 | [Arctic Fuse 3](https://github.com/primez-x/skin.arctic.fuse.3) | Kodi skin | `primez` |
+| [Starlight](https://github.com/primez-x/starlight) | High tech space themed Kodi skin, built on Arctic Fuse 3 | `main` |
 | [Arctic Fuse 3 images](https://github.com/primez-x/resource.images.arctic.fuse.3) | Shared skin artwork | `main` |
 | [TMDb Helper](https://github.com/primez-x/plugin.video.themoviedb.helper) | Metadata, browsing, and player integration | `nexus` |
 | [Up Next](https://github.com/primez-x/service.upnext) | Next-episode prompts | `master` |

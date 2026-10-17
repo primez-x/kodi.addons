@@ -34,6 +34,10 @@
       "ref": "primez"
     },
     {
+      "repository": "primez-x/starlight",
+      "ref": "main"
+    },
+    {
       "repository": "jurialmunkey/resource.font.robotocjksc",
       "ref": "v0.0.3"
     },
