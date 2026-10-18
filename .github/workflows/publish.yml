@@ -25,7 +25,8 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # The Starlight texture tests compare PNG bytes rendered by librsvg 2.58
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
       name: github-pages
@@ -41,7 +42,10 @@ jobs:
 
       - name: Install add-on test dependencies
         # Used by the per-add-on "tests" commands in addons.json
-        run: python3 -m pip install --disable-pip-version-check pytest polib requests pillow==11.1.0
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends librsvg2-2
+          python3 -m pip install --disable-pip-version-check pytest polib requests pillow==11.1.0
 
       - name: Test the repository builder
         run: python3 -m unittest discover -s tests

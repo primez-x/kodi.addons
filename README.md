@@ -92,7 +92,8 @@ Already published commits are not tested again.
 ## Build and check locally
 
 Use Python 3.12 to match the GitHub Actions workflow.
-Install the add-on test dependencies:
+Install the add-on test dependencies.
+The Starlight skin tests also need librsvg 2.58 (`librsvg2-2` on Ubuntu 24.04):
 
 ```bash
 python3 -m pip install pytest polib requests pillow==11.1.0
