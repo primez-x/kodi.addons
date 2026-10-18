@@ -22,6 +22,9 @@ Keep automatic updates enabled for the installed add-ons.
 | --- | --- | --- |
 | [PlexKodiConnect](https://github.com/primez-x/plugin.video.plexkodiconnect) | Plex media in Kodi's native library | `python3-beta` |
 | [SpotifyKodiConnect](https://github.com/primez-x/plugin.audio.spotifykodiconnect) | Spotify playback and library access | `master` |
+| [Arctic Fuse 3](https://github.com/primez-x/skin.arctic.fuse.3) | Customisable Kodi skin | `primez` |
+| [Arctic Fuse 3 images](https://github.com/primez-x/resource.images.arctic.fuse.3) | Shared skin artwork | `main` |
+| [TMDb Helper](https://github.com/primez-x/plugin.video.themoviedb.helper) | Metadata, browse pages, and player integration | `nexus` |
 | [Starlight](https://github.com/primez-x/skin.starlight) | Space themed Kodi skin with a Plex-first home | `main` |
 | [Starlight helper](https://github.com/primez-x/script.starlight) | Search, music queue and next-track services for Starlight | `main` |
 | [Starlight screensaver](https://github.com/primez-x/screensaver.starlight) | Deep field and quiet sky screensaver | `main` |
@@ -33,7 +36,14 @@ Keep automatic updates enabled for the installed add-ons.
 | [Unpause Jumpback](https://github.com/primez-x/script.xbmc.unpausejumpback) | Jumps back after pause or fast-forward | `primez` |
 | [Playback Resumer](https://github.com/primez-x/script.service.playbackresumer) | Resume points and resume after restart | `primez` |
 
-The manifest also pins the PlexKodiConnect Movies and TV Shows support packages: `croneter` repositories at `3.0.2`.
+The manifest also pins these support packages:
+
+- PlexKodiConnect Movies and TV Shows: `croneter` repositories at `3.0.2`.
+- `resource.font.robotocjksc`: `v0.0.3`.
+- `script.module.infotagger`: `v0.0.8`.
+- `script.module.jurialmunkey`: `v0.2.35`.
+- `script.skinvariables`: `v2.2.2`.
+- `script.texturemaker`: the commit recorded in `addons.json`.
 
 ## Publish an add-on update
 
