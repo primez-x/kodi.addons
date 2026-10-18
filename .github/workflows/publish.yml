@@ -41,7 +41,7 @@ jobs:
 
       - name: Install add-on test dependencies
         # Used by the per-add-on "tests" commands in addons.json
-        run: python3 -m pip install --disable-pip-version-check pytest polib requests
+        run: python3 -m pip install --disable-pip-version-check pytest polib requests pillow==11.1.0
 
       - name: Test the repository builder
         run: python3 -m unittest discover -s tests

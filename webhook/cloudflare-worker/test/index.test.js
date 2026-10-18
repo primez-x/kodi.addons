@@ -9,9 +9,10 @@ const sha = "a".repeat(40);
 const defaultRepositories = {
   "primez-x/plugin.video.plexkodiconnect": "python3-beta",
   "primez-x/plugin.audio.spotifykodiconnect": "master",
-  "primez-x/starlight": "main",
-  "primez-x/resource.images.arctic.fuse.3": "main",
-  "primez-x/plugin.video.themoviedb.helper": "nexus",
+  "primez-x/skin.starlight": "main",
+  "primez-x/script.starlight": "main",
+  "primez-x/screensaver.starlight": "main",
+  "primez-x/visualization.starlight": "armv7",
   "primez-x/service.upnext": "master",
   "primez-x/service.nexttrack": "main",
   "primez-x/service.smartsubtitles": "main",

@@ -22,9 +22,10 @@ Keep automatic updates enabled for the installed add-ons.
 | --- | --- | --- |
 | [PlexKodiConnect](https://github.com/primez-x/plugin.video.plexkodiconnect) | Plex media in Kodi's native library | `python3-beta` |
 | [SpotifyKodiConnect](https://github.com/primez-x/plugin.audio.spotifykodiconnect) | Spotify playback and library access | `master` |
-| [Starlight](https://github.com/primez-x/starlight) | High tech space themed Kodi skin, built on Arctic Fuse 3 | `main` |
-| [Arctic Fuse 3 images](https://github.com/primez-x/resource.images.arctic.fuse.3) | Shared skin artwork | `main` |
-| [TMDb Helper](https://github.com/primez-x/plugin.video.themoviedb.helper) | Metadata, browsing, and player integration | `nexus` |
+| [Starlight](https://github.com/primez-x/skin.starlight) | Space themed Kodi skin with a Plex-first home | `main` |
+| [Starlight helper](https://github.com/primez-x/script.starlight) | Search, music queue and next-track services for Starlight | `main` |
+| [Starlight screensaver](https://github.com/primez-x/screensaver.starlight) | Deep field and quiet sky screensaver | `main` |
+| [Starlight visualiser](https://github.com/primez-x/visualization.starlight) | Radial music visualiser; `armv7` holds the CoreELEC ARM build | `armv7` |
 | [Up Next](https://github.com/primez-x/service.upnext) | Next-episode prompts | `master` |
 | [Next Track](https://github.com/primez-x/service.nexttrack) | Next-track prompts and queue control | `main` |
 | [Smart Subtitles](https://github.com/primez-x/service.smartsubtitles) | Automatic subtitle selection | `main` |
@@ -32,14 +33,7 @@ Keep automatic updates enabled for the installed add-ons.
 | [Unpause Jumpback](https://github.com/primez-x/script.xbmc.unpausejumpback) | Jumps back after pause or fast-forward | `primez` |
 | [Playback Resumer](https://github.com/primez-x/script.service.playbackresumer) | Resume points and resume after restart | `primez` |
 
-The manifest also pins these support packages:
-
-- PlexKodiConnect Movies and TV Shows: `croneter` repositories at `3.0.2`.
-- `resource.font.robotocjksc`: `v0.0.3`.
-- `script.module.infotagger`: `v0.0.8`.
-- `script.module.jurialmunkey`: `v0.2.35`.
-- `script.skinvariables`: `v2.2.2`.
-- `script.texturemaker`: the commit recorded in `addons.json`.
+The manifest also pins the PlexKodiConnect Movies and TV Shows support packages: `croneter` repositories at `3.0.2`.
 
 ## Publish an add-on update
 
@@ -101,7 +95,7 @@ Use Python 3.12 to match the GitHub Actions workflow.
 Install the add-on test dependencies:
 
 ```bash
-python3 -m pip install pytest polib requests
+python3 -m pip install pytest polib requests pillow==11.1.0
 python3 -m unittest discover -s tests
 python3 tools/build_repository.py
 ```
