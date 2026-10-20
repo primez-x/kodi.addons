@@ -638,7 +638,14 @@ class WebhookBranchTests(unittest.TestCase):
         owner = manifest["repository"]["provider_name"]
         branches = {entry["repository"]: entry["ref"] for entry in manifest["addons"]
                     if entry["repository"].startswith(owner + "/")}
-        self.assertEqual(defaults, branches)
+        self.assertEqual(defaults.keys(), branches.keys())
+        for repository, ref in branches.items():
+            with self.subTest(repository=repository):
+                if re.fullmatch(r"[0-9a-f]{40}", ref):
+                    # An immutable package pin preserves the webhook branch.
+                    self.assertNotRegex(defaults[repository], r"^[0-9a-f]{40}$")
+                else:
+                    self.assertEqual(defaults[repository], ref)
 
 
 class RunAddonTestsTests(unittest.TestCase):
