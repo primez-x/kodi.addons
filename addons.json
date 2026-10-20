@@ -26,6 +26,10 @@
       "ref": "master"
     },
     {
+      "repository": "primez-x/plugin.video.youtube",
+      "ref": "primez"
+    },
+    {
       "repository": "primez-x/resource.images.arctic.fuse.3",
       "ref": "main"
     },
