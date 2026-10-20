@@ -207,7 +207,7 @@ def fetch_published_source_manifest(config: dict) -> dict[str, dict]:
 
 
 def run_addon_tests(addon_root: Path, addon_config: dict, label: str) -> None:
-    """Run the add-on's configured test commands; raise RuntimeError on failure.
+    """Run configured tests in a source copy; raise RuntimeError on failure.
 
     ``tests`` in addons.json is a list of argv lists run from the add-on root.
     A leading "python3" runs with this interpreter. ``test_env`` adds
@@ -220,32 +220,35 @@ def run_addon_tests(addon_root: Path, addon_config: dict, label: str) -> None:
     env.update({key: str(value) for key, value in addon_config.get("test_env", {}).items()})
     # Tests must never see publish credentials
     env.pop("GITHUB_TOKEN", None)
-    for command in commands:
-        argv = [sys.executable if index == 0 and part == "python3" else part
-                for index, part in enumerate(command)]
-        print(f"Testing {label}: {' '.join(command)}")
-        try:
-            result = subprocess.run(
-                argv,
-                cwd=addon_root,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=TEST_TIMEOUT_SECONDS,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                f"Tests for {label} timed out after {TEST_TIMEOUT_SECONDS}s: {' '.join(command)}"
-            ) from exc
-        except OSError as exc:
-            raise RuntimeError(f"Could not run tests for {label}: {exc}") from exc
-        if result.returncode != 0:
-            tail = "\n".join(result.stdout.splitlines()[-60:])
-            raise RuntimeError(
-                f"Tests failed for {label} (exit {result.returncode}): {' '.join(command)}\n{tail}"
-            )
+    with tempfile.TemporaryDirectory(prefix="kodi-addon-tests-") as test_name:
+        test_root = Path(test_name) / addon_root.name
+        shutil.copytree(addon_root, test_root)
+        for command in commands:
+            argv = [sys.executable if index == 0 and part == "python3" else part
+                    for index, part in enumerate(command)]
+            print(f"Testing {label}: {' '.join(command)}")
+            try:
+                result = subprocess.run(
+                    argv,
+                    cwd=test_root,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=TEST_TIMEOUT_SECONDS,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    f"Tests for {label} timed out after {TEST_TIMEOUT_SECONDS}s: {' '.join(command)}"
+                ) from exc
+            except OSError as exc:
+                raise RuntimeError(f"Could not run tests for {label}: {exc}") from exc
+            if result.returncode != 0:
+                tail = "\n".join(result.stdout.splitlines()[-60:])
+                raise RuntimeError(
+                    f"Tests failed for {label} (exit {result.returncode}): {' '.join(command)}\n{tail}"
+                )
 
 
 def is_source_publish(addon_config: dict) -> bool:

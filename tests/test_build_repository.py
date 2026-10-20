@@ -1,5 +1,8 @@
 """Tests for the publish selection logic in tools/build_repository.py.
 
+Test output must not add, replace, or remove package files. Preserve source
+databases and keep one test workspace across commands for each add-on.
+
 Run with: python3 -m unittest discover -s tests
 """
 
@@ -83,6 +86,7 @@ class BuildRepositoryTests(unittest.TestCase):
             entry["id"]: entry for entry in self.published.values()
         }
         real_run_tests = builder.run_addon_tests
+        self.original_test_runner = real_run_tests
         self.test_configs = []
 
         def run_tests(addon_root, addon_config, label):
@@ -336,6 +340,45 @@ class BuildRepositoryTests(unittest.TestCase):
             names = archive.namelist()
         self.assertNotIn("a/CLAUDE.md", names)
         self.assertNotIn("a/AGENTS.md", names)
+
+    def test_test_output_cannot_change_either_source_package(self):
+        for name in ("a", "b"):
+            self.add("o/" + name, name + "0", "1.0.0")
+            self.publish_state("o/" + name, name + "0")
+            self.add("o/" + name, name + "1", "1.0.1", files={
+                "resources/code.py": "source code",
+                "resources/icon.png": b"source image",
+                "resources/catalogue.db": b"source database",
+            })
+        mutate = (
+            "from pathlib import Path; "
+            "Path('offline_badges.db').touch(); "
+            "Path('generated.bin').write_bytes(b'test output'); "
+            "Path('resources/code.py').write_text('test mutation'); "
+            "Path('resources/icon.png').unlink()"
+        )
+        verify_workspace = (
+            "from pathlib import Path; "
+            "assert Path('offline_badges.db').exists(); "
+            "assert Path('resources/code.py').read_text() == 'test mutation'"
+        )
+
+        def run_tests(addon_root, addon_config, label):
+            self.tests_run.append(label)
+            self.original_test_runner(addon_root, {
+                "tests": [["python3", "-c", mutate], ["python3", "-c", verify_workspace]],
+            }, label)
+
+        self.builder.run_addon_tests = run_tests
+        self.build(["o/a", "o/b"], source=("o/a", "a1"))
+        self.assertEqual(2, len(self.tests_run))
+        for name in ("a", "b"):
+            with self.subTest(addon=name), zipfile.ZipFile(self.output / name / (name + "-1.0.1.zip")) as archive:
+                self.assertNotIn(name + "/offline_badges.db", archive.namelist())
+                self.assertNotIn(name + "/generated.bin", archive.namelist())
+                self.assertEqual(b"source code", archive.read(name + "/resources/code.py"))
+                self.assertEqual(b"source image", archive.read(name + "/resources/icon.png"))
+                self.assertEqual(b"source database", archive.read(name + "/resources/catalogue.db"))
 
     def test_publish_check_treats_the_same_paths_as_not_shipped(self):
         sys.modules.pop("publish_check", None)
