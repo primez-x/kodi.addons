@@ -316,6 +316,52 @@ def enforce_source_version_bump(
     )
 
 
+def approved_version_rollback(
+    addon_id: str,
+    version: str,
+    addon_config: dict,
+    published_versions: dict[str, str],
+    published_sources: dict[str, dict],
+    source_sha: str,
+) -> bool:
+    """Bind a temporary rollback declaration to the exact source and published state."""
+    if "version_rollback" not in addon_config:
+        return False
+    rollback = addon_config["version_rollback"]
+    fields = {"repository", "id", "from_sha", "from_version", "to_sha", "to_version"}
+    if (not isinstance(rollback, dict) or set(rollback) != fields
+            or any(not isinstance(value, str) or not value for value in rollback.values())):
+        raise RuntimeError("Invalid version rollback declaration: require repository, id, from_sha, "
+                           "from_version, to_sha and to_version")
+    for field in ("from_sha", "to_sha"):
+        sha = rollback[field]
+        if len(sha) != 40 or any(character not in "0123456789abcdef" for character in sha):
+            raise RuntimeError(f"Invalid version rollback {field}: require a full lowercase commit SHA")
+    try:
+        lower_version = compare_addon_versions(rollback["to_version"], rollback["from_version"]) < 0
+    except RuntimeError as exc:
+        raise RuntimeError(f"Invalid version rollback declaration: {exc}") from exc
+    if not lower_version or rollback["from_sha"] == rollback["to_sha"]:
+        raise RuntimeError("Invalid version rollback declaration: require a lower version at a different SHA")
+
+    repository = addon_config["repository"]
+    if (repository, addon_id, source_sha, version) != (
+        rollback["repository"], rollback["id"], rollback["to_sha"], rollback["to_version"]
+    ):
+        raise RuntimeError(f"Version rollback source mismatch for {repository}@{source_sha}: "
+                           "only the declared add-on, target SHA and version may be published")
+    published = published_sources.get(addon_id, {})
+    state = (published.get("sha"), published.get("version"))
+    previous = (rollback["from_sha"], rollback["from_version"])
+    target = (rollback["to_sha"], rollback["to_version"])
+    if (published.get("id") != addon_id or published.get("repository") != repository
+            or published_versions.get(addon_id) != published.get("version")
+            or state not in (previous, target)):
+        raise RuntimeError(f"Version rollback published state mismatch for {addon_id}: "
+                           "require the declared previous source or the already-published target")
+    return state == previous
+
+
 def safe_extract(zip_path: Path, destination: Path) -> None:
     with zipfile.ZipFile(zip_path) as archive:
         for member in archive.infolist():
@@ -552,19 +598,20 @@ def check_candidate(
     label: str,
 ) -> None:
     """Raise RuntimeError unless this not-yet-published commit may be published."""
-    enforce_source_version_bump(
-        addon_id,
-        version,
-        addon_config,
-        published_versions,
-        published_sources,
-        source_sha,
+    rollback = approved_version_rollback(
+        addon_id, version, addon_config, published_versions, published_sources, source_sha,
     )
+    if rollback:
+        print(f"Version guard: authorized exact rollback of {addon_id} to {version} from {source_sha}")
+    else:
+        enforce_source_version_bump(
+            addon_id, version, addon_config, published_versions, published_sources, source_sha,
+        )
     try:
         _addon_id, _version, news = publish_check.addon_info(
             (addon_root / "addon.xml").read_bytes(), label)
         publish_check.check_news(version, news)
-        previous = published_versions.get(addon_id)
+        previous = None if rollback else published_versions.get(addon_id)
         message = ""
         if previous and publish_check.parse_version(version) not in [
             publish_check.parse_version(candidate)
@@ -625,7 +672,8 @@ def build() -> None:
         published_versions = fetch_published_addon_versions(manifest["repository"])
         published_sources = fetch_published_source_manifest(manifest["repository"])
     except RuntimeError as exc:
-        if os.environ.get("KODI_SOURCE_REPOSITORY"):
+        if (os.environ.get("KODI_SOURCE_REPOSITORY")
+                or any("version_rollback" in addon for addon in manifest["addons"])):
             raise
         print(f"WARNING: {exc}; building every add-on from its configured ref")
         published_versions, published_sources = {}, {}
@@ -662,13 +710,16 @@ def build() -> None:
         # output retain manifest order. Futures cache candidates and fallbacks.
         for addon_config, ref, source_sha in sources:
             repository = addon_config["repository"]
-            strict = is_source_publish(addon_config)
+            strict = is_source_publish(addon_config) or "version_rollback" in addon_config
             published = published_source_for(repository, published_sources)
 
             print(f"Packaging {repository}@{ref} ({source_sha})")
             addon_root = prefetch(repository, source_sha).result()
             addon_id, version, addon_xml_root = parse_addon(addon_root / "addon.xml")
             label = f"{repository}@{source_sha[:12]}"
+            approved_version_rollback(
+                addon_id, version, addon_config, published_versions, published_sources, source_sha,
+            )
             already_published = published is not None and published.get("sha") == source_sha
             exclude_patterns = list(DEFAULT_EXCLUDES)
             exclude_patterns.extend(addon_config.get("exclude", []))

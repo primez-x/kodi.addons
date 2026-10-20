@@ -210,7 +210,7 @@ class BuildRepositoryTests(unittest.TestCase):
         }
         self.published_versions[addon_id] = version
 
-    def build(self, repositories, source=None):
+    def build(self, repositories, source=None, configs=None):
         manifest = {
             "repository": {
                 "id": "repository.test",
@@ -219,7 +219,8 @@ class BuildRepositoryTests(unittest.TestCase):
                 "base_url": "https://example.invalid/",
             },
             "addons": [
-                {"repository": repository, "ref": "main", "tests": [PASSING_TEST]}
+                dict({"repository": repository, "ref": "main", "tests": [PASSING_TEST]},
+                     **(configs or {}).get(repository, {}))
                 for repository in repositories
             ],
         }
@@ -234,6 +235,134 @@ class BuildRepositoryTests(unittest.TestCase):
             self.builder.build()
         manifest_out = json.loads((self.output / "source-manifest.json").read_text())
         return {entry["repository"]: entry for entry in manifest_out["addons"]}
+
+    def rollback_state(self, **target_options):
+        repository = "primez-x/plugin.audio.spotifykodiconnect"
+        previous = "f2f58eecd078d8feee20f5d58ba532822b84af84"
+        target = "185b6069a13d63cab770318fa4d50a77962099c5"
+        self.add(repository, previous, "1.10.3")
+        self.publish_state(repository, previous)
+        self.add(repository, target, "1.4.2", head=False, **target_options)
+        rollback = {
+            "repository": repository,
+            "id": "plugin.audio.spotifykodiconnect",
+            "from_sha": previous,
+            "from_version": "1.10.3",
+            "to_sha": target,
+            "to_version": "1.4.2",
+        }
+        return repository, target, {repository: {"ref": target, "version_rollback": rollback}}
+
+    def test_exact_rollback_builds_target_package_and_allows_idempotent_retry(self):
+        repository, target, configs = self.rollback_state()
+        for index, source in enumerate((None, (repository, target)), start=1):
+            self.publish_state(repository, configs[repository]["version_rollback"]["from_sha"])
+            with self.subTest(source=source):
+                built = self.build([repository], source=source, configs=configs)
+                entry = built[repository]
+                self.assertEqual(entry["sha"], target)
+                self.assertEqual(entry["version"], "1.4.2")
+                self.assertEqual(entry["resolved_ref"], target)
+                addon = ET.parse(self.output / "addons.xml").find("./addon[@id='plugin.audio.spotifykodiconnect']")
+                self.assertEqual(addon.get("version"), "1.4.2")
+                package = self.output / "plugin.audio.spotifykodiconnect/plugin.audio.spotifykodiconnect-1.4.2.zip"
+                with zipfile.ZipFile(package) as archive:
+                    xml = archive.read("plugin.audio.spotifykodiconnect/addon.xml")
+                    self.assertEqual(ET.fromstring(xml).get("version"), "1.4.2")
+                self.assertEqual(len(self.tests_run), index)
+                self.publish_state(repository, target)
+                self.build([repository], source=source, configs=configs)
+                self.assertEqual(len(self.tests_run), index)
+
+    def test_rollback_denies_every_missing_or_mismatched_declaration_field(self):
+        repository, target, configs = self.rollback_state()
+        rollback = configs[repository]["version_rollback"]
+        for field, wrong in {
+            "repository": "other/plugin.audio.spotifykodiconnect",
+            "id": "other.addon",
+            "from_sha": "a" * 40,
+            "from_version": "1.10.2",
+            "to_sha": "b" * 40,
+            "to_version": "1.4.1",
+        }.items():
+            for value in (None, wrong):
+                declaration = dict(rollback)
+                if value is None:
+                    declaration.pop(field)
+                else:
+                    declaration[field] = value
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(RuntimeError, "rollback"):
+                    self.build([repository], configs={repository: dict(configs[repository],
+                                                                      version_rollback=declaration)})
+
+    def test_rollback_denies_missing_or_inconsistent_published_state(self):
+        repository, target, configs = self.rollback_state()
+        addon_id = "plugin.audio.spotifykodiconnect"
+        original = dict(self.published[repository])
+        for field, value in (("id", "other.addon"), ("repository", "other/repository"),
+                             ("sha", "a" * 40), ("version", "1.10.2"),
+                             ("sha", None), ("version", None)):
+            self.published[repository] = dict(original, **{field: value})
+            with self.subTest(field=field, value=value), self.assertRaisesRegex(RuntimeError, "rollback"):
+                self.build([repository], configs=configs)
+        self.published[repository] = original
+        for versions, sources in (({}, self.published), (self.published_versions, {}),
+                                  ({addon_id: "1.10.2"}, self.published)):
+            with self.subTest(versions=versions, sources=sources), \
+                    mock.patch.object(self.builder, "fetch_published_addon_versions", return_value=versions), \
+                    mock.patch.object(self.builder, "fetch_published_source_manifest",
+                                      return_value={entry["id"]: entry for entry in sources.values()}):
+                with self.assertRaisesRegex(RuntimeError, "rollback"):
+                    self.build([repository], configs=configs)
+        self.builder.fetch_published_addon_versions = mock.Mock(side_effect=RuntimeError("offline"))
+        with self.assertRaisesRegex(RuntimeError, "offline"):
+            self.build([repository], configs=configs)
+
+    def test_active_rollback_denies_stale_webhooks_before_and_after_publication(self):
+        repository, target, configs = self.rollback_state()
+        previous = configs[repository]["version_rollback"]["from_sha"]
+        for published_sha in (previous, target):
+            self.publish_state(repository, published_sha)
+            for stale, version in ((previous, "1.10.3"), ("c" * 40, "1.5.0"), ("b" * 40, "1.4.2")):
+                if stale != previous:
+                    self.add(repository, stale, version, head=False)
+                with self.subTest(published=published_sha, stale=stale), \
+                        self.assertRaisesRegex(RuntimeError, "rollback"):
+                    self.build([repository], source=(repository, stale), configs=configs)
+
+    def test_rollback_retains_news_tests_and_source_isolation(self):
+        repository, target, configs = self.rollback_state(news="v1.10.3\nWrong release")
+        with self.assertRaisesRegex(RuntimeError, "news"):
+            self.build([repository], configs=configs)
+        self.add(repository, target, "1.4.2", failing=True)
+        with self.assertRaisesRegex(RuntimeError, "Tests failed"):
+            self.build([repository], configs=configs)
+        self.add(repository, target, "1.4.2", publish_config={"tests": [["python3", "-c",
+            "from pathlib import Path; import os; assert 'GITHUB_TOKEN' not in os.environ; "
+            "Path('marker.txt').write_text('changed'); Path('generated.bin').touch()"]]})
+        self.builder.run_addon_tests = self.original_test_runner
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "test-token"}):
+            self.build([repository], configs=configs)
+        package = self.output / "plugin.audio.spotifykodiconnect/plugin.audio.spotifykodiconnect-1.4.2.zip"
+        with zipfile.ZipFile(package) as archive:
+            self.assertEqual(archive.read("plugin.audio.spotifykodiconnect/marker.txt"), b"pass")
+            self.assertNotIn("plugin.audio.spotifykodiconnect/generated.bin", archive.namelist())
+            self.assertNotIn("plugin.audio.spotifykodiconnect/.primez-publish.json", archive.namelist())
+        self.add(repository, target, "1.4.2", files={"../../outside": "unsafe"})
+        with self.assertRaisesRegex(RuntimeError, "Unsafe archive path"):
+            self.build([repository], configs=configs)
+
+    def test_consumed_rollback_uses_normal_guards_after_declaration_removal(self):
+        repository, target, configs = self.rollback_state()
+        with self.assertRaisesRegex(RuntimeError, "backwards"):
+            self.build([repository], source=(repository, target))
+        self.build([repository], configs=configs)
+        self.publish_state(repository, target)
+        self.add(repository, "d" * 40, "1.4.3")
+        self.assertEqual(self.build([repository])[repository]["version"], "1.4.3")
+        self.add(repository, "e" * 40, "1.4.5")
+        with self.assertRaisesRegex(RuntimeError, "not one step above"):
+            self.build([repository], source=(repository, "e" * 40))
 
     def test_source_publish_with_failing_tests_fails_the_run(self):
         self.add("o/a", "a1", "1.0.0")

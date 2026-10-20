@@ -23,7 +23,15 @@
     },
     {
       "repository": "primez-x/plugin.audio.spotifykodiconnect",
-      "ref": "master"
+      "ref": "185b6069a13d63cab770318fa4d50a77962099c5",
+      "version_rollback": {
+        "repository": "primez-x/plugin.audio.spotifykodiconnect",
+        "id": "plugin.audio.spotifykodiconnect",
+        "from_sha": "f2f58eecd078d8feee20f5d58ba532822b84af84",
+        "from_version": "1.10.3",
+        "to_sha": "185b6069a13d63cab770318fa4d50a77962099c5",
+        "to_version": "1.4.2"
+      }
     },
     {
       "repository": "primez-x/plugin.video.youtube",
